@@ -1,0 +1,49 @@
+spring:
+  autoconfigure:
+    exclude: org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
+  application:
+    name: spring-application-starter
+  batch:
+    job:
+      enabled: false
+    jdbc:
+      initialize-schema: never
+      table-prefix: system.BATCH_
+  http:
+    clients:
+      connect-timeout: ${HTTP_CONNECT_TIMEOUT:2s}
+      read-timeout: ${HTTP_READ_TIMEOUT:10s}
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+  flyway:
+    default-schema: public
+    locations: classpath:db/migration
+  docker:
+    compose:
+      file: docker/compose.yaml
+      profiles:
+        active: dev
+
+server:
+  shutdown: graceful
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: never
+logging:
+  level:
+    org.springframework.batch.core.launch.support.TaskExecutorJobLauncher: WARN
+  pattern:
+    correlation: "[correlationId=%X{correlationId:-}] "
+
+springdoc:
+  api-docs:
+    enabled: ${API_DOCUMENTATION_ENABLED:false}
+  swagger-ui:
+    enabled: ${API_DOCUMENTATION_ENABLED:false}
+  packages-to-scan: dev.template.application.web.rest
+  override-with-generic-response: false

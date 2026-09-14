@@ -1,0 +1,9 @@
+name: spring-application-starter
+desc: Feature schema and Spring Batch metadata
+docPath: build/documentation/database
+er:
+  format: svg
+  hideDef: true
+include:
+  - feature.*
+  - system.*

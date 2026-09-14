@@ -1,0 +1,59 @@
+[versions]
+# renovate: datasource=docker
+buildpack-builder-image = "paketobuildpacks/builder-noble-java-tiny:0.0.187"
+# renovate: datasource=docker
+buildpack-run-image = "paketobuildpacks/ubuntu-noble-run-tiny:0.0.130"
+springdoc = "3.1.1"
+playwright = "1.62.0"
+vaadin = "25.2.6"
+spring-boot = "4.1.1"
+spring-modulith = "2.1.1"
+spotless = "8.10.2"
+google-java-format = "1.36.1"
+spotbugs-plugin = "6.5.11"
+spotbugs-engine = "4.10.4"
+checkstyle = "14.1.0"
+jacoco = "0.8.14"
+# renovate: datasource=docker
+postgres-image = "postgres:18.6"
+uuid-creator = "6.1.1"
+
+[libraries]
+springdoc-webmvc-ui = { module = "org.springdoc:springdoc-openapi-starter-webmvc-ui", version.ref = "springdoc" }
+spring-boot-starter-actuator = { module = "org.springframework.boot:spring-boot-starter-actuator" }
+spring-boot-starter-aspectj = { module = "org.springframework.boot:spring-boot-starter-aspectj" }
+spring-boot-starter-restclient = { module = "org.springframework.boot:spring-boot-starter-restclient" }
+spring-boot-starter-batch-jdbc = { module = "org.springframework.boot:spring-boot-starter-batch-jdbc" }
+playwright = { module = "com.microsoft.playwright:playwright", version.ref = "playwright" }
+vaadin-bom = { module = "com.vaadin:vaadin-bom", version.ref = "vaadin" }
+vaadin-core = { module = "com.vaadin:vaadin-core" }
+vaadin-spring = { module = "com.vaadin:vaadin-spring" }
+spring-boot-starter-webmvc = { module = "org.springframework.boot:spring-boot-starter-webmvc" }
+spring-boot-starter-security = { module = "org.springframework.boot:spring-boot-starter-security" }
+spring-boot-starter-validation = { module = "org.springframework.boot:spring-boot-starter-validation" }
+spring-boot-starter-webmvc-test = { module = "org.springframework.boot:spring-boot-starter-webmvc-test" }
+spring-boot-starter-security-test = { module = "org.springframework.boot:spring-boot-starter-security-test" }
+uuid-creator = { module = "com.github.f4b6a3:uuid-creator", version.ref = "uuid-creator" }
+spring-modulith-api = { module = "org.springframework.modulith:spring-modulith-api" }
+spring-boot-bom = { module = "org.springframework.boot:spring-boot-dependencies", version.ref = "spring-boot" }
+spring-boot-starter = { module = "org.springframework.boot:spring-boot-starter" }
+spring-boot-starter-test = { module = "org.springframework.boot:spring-boot-starter-test" }
+spring-modulith-bom = { module = "org.springframework.modulith:spring-modulith-bom", version.ref = "spring-modulith" }
+spring-modulith-starter-test = { module = "org.springframework.modulith:spring-modulith-starter-test" }
+junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
+spring-boot-starter-jooq = { module = "org.springframework.boot:spring-boot-starter-jooq" }
+spring-boot-starter-flyway = { module = "org.springframework.boot:spring-boot-starter-flyway" }
+spring-boot-docker-compose = { module = "org.springframework.boot:spring-boot-docker-compose" }
+spring-boot-testcontainers = { module = "org.springframework.boot:spring-boot-testcontainers" }
+flyway-core = { module = "org.flywaydb:flyway-core" }
+flyway-postgresql = { module = "org.flywaydb:flyway-database-postgresql" }
+postgresql = { module = "org.postgresql:postgresql" }
+jooq-codegen = { module = "org.jooq:jooq-codegen" }
+testcontainers-postgresql = { module = "org.testcontainers:testcontainers-postgresql" }
+testcontainers-junit = { module = "org.testcontainers:testcontainers-junit-jupiter" }
+
+[plugins]
+vaadin = { id = "com.vaadin", version.ref = "vaadin" }
+spring-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }
+spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }
+spotbugs = { id = "com.github.spotbugs", version.ref = "spotbugs-plugin" }

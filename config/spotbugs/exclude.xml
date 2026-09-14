@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<FindBugsFilter>
+    <!-- A repository port is intentionally shared by dependency injection, not copied. -->
+    <Match>
+        <Class name="dev.template.application.feature.internal.usecase.CreateFeatureUseCase"/>
+        <Field name="repository"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+</FindBugsFilter>

@@ -1,0 +1,48 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "helpers:pinGitHubActionDigests"
+  ],
+  "automerge": false,
+  "enabledManagers": [
+    "gradle",
+    "gradle-wrapper",
+    "dockerfile",
+    "docker-compose",
+    "github-actions",
+    "npm",
+    "custom.regex"
+  ],
+  "ignoreDeps": [
+    "spring-application-starter-docs"
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^gradle\\/libs\\.versions\\.toml$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=docker\\s+[^\\n=]+ = \"(?<depName>[^\"\\s]+):(?<currentValue>[^\"\\s]+)\""
+      ],
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "docker"
+    }
+  ],
+  "packageRules": [
+    {
+      "matchPackageNames": [
+        "postgres"
+      ],
+      "groupName": "PostgreSQL images"
+    },
+    {
+      "matchPackageNames": [
+        "paketobuildpacks/builder-noble-java-tiny",
+        "paketobuildpacks/ubuntu-noble-run-tiny"
+      ],
+      "groupName": "Paketo builder and run images"
+    }
+  ]
+}
