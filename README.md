@@ -125,5 +125,6 @@ OpenAPI endpointとSwagger UIはdefault無効。案件の認証を接続した�
 - [architecture](docs/architecture.md)
 - [database](docs/database.md)
 - [実装計画・進捗](docs/implementation-plan.md)
+- [完成条件と検証証跡](docs/starter-verification.md)
 
 資料と実装に矛盾がある場合は `docs/decisions.md` を優先する。

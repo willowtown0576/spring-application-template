@@ -4,9 +4,9 @@
 
 ## 現在地
 
-Phase 8（CI / Releaseと完成確認）を実施中。GitHub Actions・Renovate・release artifact taskを実装し、clean buildとOCI / JAR起動をローカル検証済み。GitHub上の実行確認を進める。認証方式は案件側で接続する。
+Phase 8（CI / Releaseと完成確認）完了。GitHubのCIとrelease build-only検証、Renovateのdependency抽出、clean build、JAR / OCI起動を確認した。全46項目の証跡は [Starter完成条件の検証](starter-verification.md) に集約した。
 
-現在の実装対象はPhase 8。D-551に従い、一度に指定されたphaseだけを実装し、完了後に進捗と検証結果を記録して停止する。
+予定したPhase 0〜8の実装は完了。GitHub Releaseの実公開、Renovate Appの定期PR、案件の認証・secret・deployment接続、Windows検証は未実施。今後は案件の業務要件に応じて作業を指定する。
 
 ## Phase 0 — 資料整備
 
@@ -182,13 +182,27 @@ Phase 8（CI / Releaseと完成確認）を実施中。GitHub Actions・Renovate
 
 対象Decision: D-042、D-520〜D-543、AGENTS.mdのStarter Definition of Done。
 
-- [ ] GitHub ActionsからGradleの `check` を実行し、build logicの重複を避ける。
-- [ ] Renovateでdependencies、plugins、Wrapper、Docker images、Actionsを追跡。
-- [ ] tag起点のrelease workflow、executable JAR、Buildpacks、必要なdocumentation assetsを整備。
-- [ ] READMEを実際に動作する初期化・起動・検証・release手順へ更新。
-- [ ] Starter Definition of Doneを全件照合し、成果物と検証証跡を確認。
+- [x] GitHub ActionsからGradleの `check` を実行し、build logicの重複を避ける。
+- [x] Renovateでdependencies、plugins、Wrapper、Docker images、Actionsを追跡。
+- [x] tag起点のrelease workflow、executable JAR、Buildpacks、必要なdocumentation assetsを整備。
+- [x] READMEを実際に動作する初期化・起動・検証・release手順へ更新。
+- [x] Starter Definition of Doneを全件照合し、成果物と検証証跡を確認。
 
 完了条件: clean環境で `check`、`build`、`documentation`、`bootBuildImage` を検証し、CI/releaseの動作を確認。未実行項目を成功として扱わない。
+
+2026-09-14検証記録:
+
+- `./gradlew spotlessApply clean check build releaseArtifacts bootBuildImage --no-build-cache --warning-mode all` 成功。全42 taskを実行し、既存のbuild出力とGradle build cacheを使わず再生成。Unit 12件、Integration 42件、Architecture 7件、OpenAPI生成test 1件、失敗・skip 0。
+- Paketo Noble Java tiny builder 0.0.187 / run image 0.0.130からOCIを生成。JRE 25、non-root（1002:1001）で起動し、一時DBへFlywayを適用。JARとOCIのhealth UP、REST / UI / info / OpenAPIの未認証401、終了と一時DB破棄を確認。
+- releaseArtifactsがexecutable JAR、OpenAPI YAML、DB資料ZIP（8 ER SVGを含む）、project PDFの4成果物だけを収集すること、JARへtest認証 / Playwrightが入らないことを確認。
+- release version検証はstable version一致で成功し、不一致・不正tag・snapshotで失敗する。正の検証では一時的にproject versionを1.2.3へ変更し、終了後0.1.0-SNAPSHOTへ復元した。実release tagは作成していない。
+- actionlint 1.7.12で両workflowの構文検証成功。GitHubの [CI run 34794141586](https://github.com/willowtown0576/spring-application-template/actions/runs/34794141586) はUbuntu 24.04 / Java 25でcheck / build / report uploadが成功。
+- GitHubの [Release run 34794156551](https://github.com/willowtown0576/spring-application-template/actions/runs/34794156551) はbuild / documentation / Buildpacks / artifact uploadが成功。取得した成果物のJARとOpenAPIはlocal版とSHA-256が一致。DB ZIPの8 ER SVGとGitHub生成PDF全2ページの日本語表示も確認。workflow_dispatchのためpublish jobは意図どおりskip。実際のGitHub Release作成とregistry pushは行っていない。
+- Renovate 44.83.0公式imageでstrict config validationとlocal extract dry-runが成功。Gradle 39、Wrapper 1、Compose 2、Dockerfile 3、Actions 13、npm 1、Version Catalog内Docker image 3の計62依存参照を11設定ファイルから検出。remote lookup / Appの定期PR実行は未検証。
+- Git除外の`build/`が手書きの`src/codegen/java/dev/template/build/`にも一致する不具合を修正。ルート限定`/build/` / `/bin/`とし、2つのcodegen実行classをGit管理。generated classは含めず、指定repositoryのmainへ初回pushした。
+- AGENTS.md §80の46項目を実装・検証へ対応付けた。branch保護、Renovate App、認証provider、production secret、deploymentは案件側で接続する。Windowsと負荷中のgraceful drainは対象環境で検証する。
+
+設計判断はD-640〜D-642。application versionは0.1.0-SNAPSHOTを維持し、架空の業務処理や独自release frameworkは追加していない。
 
 ## 各phase共通の検証と記録
 
