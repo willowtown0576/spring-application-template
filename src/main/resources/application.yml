@@ -44,6 +44,15 @@ springdoc:
   api-docs:
     enabled: ${API_DOCUMENTATION_ENABLED:false}
   swagger-ui:
+    csrf:
+      enabled: true
     enabled: ${API_DOCUMENTATION_ENABLED:false}
   packages-to-scan: dev.template.application.web.rest
   override-with-generic-response: false
+
+starter:
+  security:
+    user:
+      name: ${APP_USER_NAME:}
+      password: ${APP_USER_PASSWORD:}
+      operations-read: ${APP_USER_OPERATIONS_READ:false}

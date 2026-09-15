@@ -6,20 +6,21 @@ import org.springframework.batch.core.job.JobExecution;
 import org.springframework.batch.core.listener.JobExecutionListener;
 import org.springframework.stereotype.Component;
 
+/** Batch実行の開始・終了・障害を、処理を識別する非機密情報で記録する。 */
 @Component
 class BatchLogging implements JobExecutionListener {
-  private static final Logger LOG = LoggerFactory.getLogger(BatchLogging.class);
+    private static final Logger LOG = LoggerFactory.getLogger(BatchLogging.class);
 
-  @Override
-  public void beforeJob(JobExecution execution) {
-    LOG.info("Batch start executionId={}", execution.getId());
-  }
+    /** {@inheritDoc} */
+    @Override
+    public void beforeJob(final JobExecution execution) {
+        LOG.info("Batch start executionId={}", execution.getId());
+    }
 
-  @Override
-  public void afterJob(JobExecution execution) {
-    LOG.info("Batch end executionId={} status={}", execution.getId(), execution.getStatus());
-    execution
-        .getAllFailureExceptions()
-        .forEach(exception -> TechnicalErrors.log(LOG, "Batch failure", exception));
-  }
+    /** {@inheritDoc} */
+    @Override
+    public void afterJob(final JobExecution execution) {
+        LOG.info("Batch end executionId={} status={}", execution.getId(), execution.getStatus());
+        execution.getAllFailureExceptions().forEach(exception -> TechnicalErrors.log(LOG, "Batch failure", exception));
+    }
 }

@@ -1,130 +1,119 @@
 # spring-application-starter
 
-Java / Springで小規模〜中規模の業務システムを構築するための個人用starter。業務固有機能だけが存在しない、技術基盤として完成したapplicationを目指す。
+Java 25／Spring Boot／Vaadin／PostgreSQLで、小規模〜中規模の業務システムを開発するためのstarter。少人数でも品質を維持できるよう、認可、DB、テスト、build、資料生成を共通の手順に揃える。案件では、この基盤に業務固有の機能を追加する。
 
-build・DB・REST・Vaadin・横断基盤・資料生成と、GitHub Actions / Renovate / release基盤を実装している。検証の現在地と残事項は [実装計画](docs/implementation-plan.md) を参照する。
+## 最初に動かす
 
-## 前提環境
+必要なものは **JDK 25、Git、稼働中のDocker、IDE**。GradleはWrapper、Node／npmはVaadinのbuild toolingが管理する。初回は依存、image、browserの取得にnetwork接続が必要になる。
 
-- JDK 25
-- Git
-- Docker
-- editor / IDE
-
-applicationはhost JVMで実行する。global Gradleは不要。Vaadin用Node/npmはbuild toolingが管理する。標準componentの画面では公式precompiled frontend bundleを利用する。
-
-codegenと統合テストには稼働中のDockerが必要。初回実行時はWrapper・依存・container image取得のためnetwork接続が必要。Windowsでは `./gradlew` の代わりに `gradlew.bat` を使う。
-
-## 案件開始時の初期化
-
-project name、Gradle group、base package（仮名 `dev.template.application`）、application nameを案件に合わせて一括置換する。独自initializerは導入しない。
-
-## 主なコマンド
-
-| コマンド | 用途 |
-| --- | --- |
-| `./gradlew bootRun` | 開発PostgreSQL起動 → Flyway → Web application起動（default port 8080） |
-| `./gradlew test` | domain・usecase・UUID v7・ログの機密保護を検証 |
-| `./gradlew integrationTest` | isolated PostgreSQLでDB・REST・認可・HTTP設定・Batch・Chromiumでの画面操作を検証 |
-| `./gradlew jooqCodegen` | 一時PostgreSQLにmigrationを適用し、jOOQ sourceを生成 |
-| `./gradlew architectureTest` | Modulithの境界・公開APIとArchUnitの技術的依存制約を検証 |
-| `./gradlew spotlessApply` | Java formatと資料・設定の末尾空白などを修正 |
-| `./gradlew check` | テスト・format・静的解析のquality gate |
-| `./gradlew documentation` | 一時DBからDB資料、OpenAPI、project PDFを生成 |
-| `./gradlew build` | 検証とbuild。重いdocumentation生成は含めない |
-| `./gradlew bootJar` | 配布用executable JARの生成 |
-| `./gradlew bootBuildImage` | 固定Paketo BuildpacksでOCI imageをローカル生成 |
-
-`bootRun` の前に開発DB用passwordを `DEV_DB_PASSWORD` 環境変数へ設定する。Composeはloopbackの動的portを使用し、接続先はBootが検出する。終了時にDBを停止するが、named volumeのdataは保持する。既存volumeのDB passwordは環境変数の変更だけでは変更されないため、次回も同じpasswordを使用する。
-
-`check` / `jooqCodegen` は開発password不要で、一時DBを自動で作成・破棄する。RESTの正常系はtest用認証を使う `integrationTest` で確認できる。
-
-`check` はSpotless、手書きコード（codegenを含む）のCheckstyle / SpotBugs、Unit / Integration / Architecture Test、JaCoCoを実行する。reportは `build/reports/`、Unit / Integration Testの集約coverageは `build/reports/jacoco/test/html/index.html` に出力する。
-
-配布用JARは `build/libs/` に生成する。JARには開発用Compose連携を含めない。実行時は既存PostgreSQLへの `SPRING_DATASOURCE_URL`、`SPRING_DATASOURCE_USERNAME`、`SPRING_DATASOURCE_PASSWORD` を環境変数で設定する。初期versionでの実行例:
+1. repositoryを取得し、root directoryを開く。
+2. `config/local-env.properties.example` を `config/local-env.properties` へコピーする。
+3. コピーしたfileに `DEV_DB_PASSWORD`、`APP_USER_NAME`、`APP_USER_PASSWORD` を設定する。ログインpasswordは12文字以上・72 UTF-8 bytes以下。fileはGit管理外。
+4. 起動する。
 
 ```bash
-./gradlew bootJar
-java -jar build/libs/spring-application-starter-0.1.0-SNAPSHOT.jar
+./gradlew bootRun
 ```
 
-## CI / Release
+Windowsでは `gradlew.bat` を使う。起動すると開発PostgreSQLの起動、Flyway migration、application起動まで実行される。
 
-CIはGitHubのbranch push・pull requestで `./gradlew check build` を実行する。Ubuntu 24.04 / Temurin 25を使い、Playwrightのsystem libraryは `./gradlew playwrightInstallDeps` でinstallする（Linuxではsudo権限が必要）。検証reportはActions artifactで14日間保持する。
+**[http://localhost:8080/](http://localhost:8080/)** にwelcome、**[/components](http://localhost:8080/components)** にVaadin部品集を表示する。匿名で一覧・入力・Dialog・明暗表示などを試せる。部品集の編集はView内のsample dataだけに反映する。
 
-Renovate Appをrepositoryへ接続すると、Gradle / Wrapper / Docker / Actions / Mermaidの更新をPRで提案する。自動mergeは無効。PostgreSQLのCompose / Version Catalogは同じPRで更新し、固定Debian snapshotの日付は手動で検証して更新する。
+**[/theme-comparison](http://localhost:8080/theme-comparison)** では同じ部品集をAuraとLumoで並べて比較できる。明暗切替と各テーマでの操作に対応する。
 
-release時は `build.gradle.kts` のproject versionを `1.0.0` 等のstable SemVerへ変更してcommitし、それと一致する `v1.0.0` tagをpushする。snapshotやversion不一致は拒否する。事前確認例:
+DB連携例 `/features` とREST `/api/v1/features` は認証必須。`/login` で設定した利用者としてログインできる。未認証のUIはloginへ誘導し、RESTは401を返す。作成は `feature:write`、参照は `feature:read` が必要。Batch／Schedulerは明示的なシステム主体で同じAPIを呼ぶ。詳細は[認証とシステム実行](docs/operations.md#authentication)を参照する。
+
+設定形式、DBの保持、案件名の変更、起動時の問題は[初期セットアップ](docs/getting-started.md)を参照する。
+
+## 設計の考え方
+
+**Feature単位のModular Monolith＋Command／Query分離**を採用する。正しさ、型安全性、データ整合性、securityを優先し、実装手段はJDK・Spring・導入済みlibraryの順に選択する。
+
+- REST、Vaadin、Batch、Schedulingは業務機能への入口となるadapter。featureの公開APIだけを呼ぶ。
+- Commandは認可・transaction境界を持ち、UseCaseとdomainで業務規則を扱う。UseCaseがRepository Portを所有し、jOOQ adapterが実装する。
+- Queryはread-only transaction内でDataSourceを呼び、参照結果を返す。
+- feature間の依存は公開APIに限定する。他featureの更新は公開Command API、参照JOINは必要に応じてDBで行う。
+- domainはframework非依存。UseCaseはBean登録用@Serviceのみ許可し、技術adapterとの連携をPortで表現する。
+- module境界はSpring Modulith、追加の技術的依存規則はArchUnitで検証する。
+
+図の実線はコンパイル時の依存、破線はinterfaceの実装関係を示す。
+
+```mermaid
+flowchart LR
+    ADAPTER[Web / Batch / Scheduling] --> API[feature公開API]
+    COMMAND[internal.command] -. implements .-> API
+    QUERY[internal.query] -. implements .-> API
+    COMMAND --> USECASE[UseCase]
+    USECASE --> DOMAIN[domain]
+    USECASE --> REPO[Repository Port]
+    QUERY --> SOURCE[DataSource Port]
+    INFRA[infrastructure実装] -. implements .-> REPO
+    INFRA -. implements .-> SOURCE
+    INFRA --> DOMAIN
+    INFRA --> JOOQ[jOOQ生成型]
+```
+
+実行時は公開APIのBeanから各実装を呼び、注入されたinfrastructureがSQL処理を担う。詳細は[architecture](docs/architecture.md)、採用理由は[ADR](docs/decisions.md)を参照する。
+
+## 開発の進め方
+
+案件の開発を始める際は、[案件開始チェックリスト](docs/project-adoption.md)を使用する。名称・package、sample、認証と権限、DB、UI／API、CI・配布・運用の変更箇所と完了条件をまとめている。[自動化の選択肢](docs/project-adoption.md#自動化の選択肢未採用)は比較案であり、採用後に実装する。
+
+1. [ADR](docs/decisions.md)と[開発ガイド](docs/developer-guide.md)を読み、対象featureの公開契約と制約を確認する。
+2. 設計判断が変わる場合はADRを先に追加する。
+3. 公開API、domain／UseCase、adapterを実装する。DB変更は新しいFlyway migrationを追加する。
+4. 境界値、認可、transaction等、変更に対応するtestを追加・更新する。
+5. 整形とbuildを実行する。DB／API sourceを変えた場合は資料も再生成する。
 
 ```bash
-./gradlew verifyReleaseVersion -PreleaseTag=v1.0.0
-./gradlew build releaseArtifacts bootBuildImage
+./gradlew spotlessApply build
+./gradlew documentation
 ```
 
-`releaseArtifacts` は検証後に `build/release/` へexecutable JAR、OpenAPI YAML、DB資料ZIP、project PDFを収集する。tag起点のworkflowはOCI image生成まで確認し、別jobで4成果物をGitHub Releaseへ添付する。workflow_dispatchでは同じbuildを実行し、公開を行わない。
+| コマンド                     | 用途                                                   |
+| ---------------------------- | ------------------------------------------------------ |
+| `./gradlew bootRun`          | 開発DBとapplicationを起動                              |
+| `./gradlew jooqCodegen`      | 一時DBからSQL型を生成                                  |
+| `./gradlew spotlessApply`    | format・import整理                                     |
+| `./gradlew unitTest`         | 単体テスト                                             |
+| `./gradlew integrationTest`  | PostgreSQL・REST・認可・HTTP・Batch・Chromium UIの検証 |
+| `./gradlew architectureTest` | moduleと技術的依存境界の検証                           |
+| `./gradlew test`             | 単体・結合・アーキテクチャテストとcoverage             |
+| `./gradlew check`            | 静的解析・format・配布境界の検査                       |
+| `./gradlew build`            | check・testとJAR生成                                   |
+| `./gradlew bootBuildImage`   | 固定BuildpacksでローカルOCI image生成                  |
+| `./gradlew documentation`    | DB資料・OpenAPI生成                                    |
 
-`bootBuildImage` は `${project.name}:${project.version}` のimageをローカルDockerへ生成する。builderとrun imageの固定versionはVersion Catalogで管理する。実行時はJARと同じ3つのDB環境変数を渡す。image registryへのpush・deployment先は案件側で決める。Buildpacksの初回実行にもimage / JRE取得のnetwork接続とdisk容量が必要。
+資料生成は`documentation`で実行する。reportは `build/reports/`、JARは `build/libs/`、資料は `build/documentation/`。これらはGit管理外とする。
 
-案件開始時はGitHub repository、Actionsの有効化、Renovate App、main branchの保護rule（CIの成功を必須化）を接続する。starterは認証providerやproduction secretを登録しない。
+## コードの場所
 
-## Feature public API
+| 配置                                                                                | 内容                                               |
+| ----------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `src/main/java/dev/template/application/feature/`                                   | 公開APIと内部のCommand／Query／domain／SQL adapter |
+| `src/main/java/dev/template/application/web/`                                       | RESTとVaadin                                       |
+| `src/main/java/dev/template/application/{common,security,logging,http,scheduling}/` | 共通技術基盤                                       |
+| `src/main/resources/db/migration/`                                                  | Flyway schema変更履歴                              |
+| `src/test/java/`                                                                    | 全テスト。JUnit Tagでtaskを分離                    |
+| `codegen/`                                                                          | 配布物から独立した生成ツール                       |
+| `config/`                                                                           | 品質検査・formatter・ローカル設定例                |
+| `docker/`                                                                           | 開発DBと資料toolchain                              |
+| `docs/`                                                                             | 開発・運用ガイドとADR                              |
 
-`FeatureCommands.create(name)` は `Result<UUID, CreateFailure>` を返す。不正な名前は `Failure(INVALID_NAME)`、作成成功はUUID v7を持つ `Success`。`FeatureQueries.find(id)` は `Optional<FeatureView>` を返し、未検出はemptyとなる。
+## 資料
 
-名前は100 Unicode code point以内とし、入力をそのまま保存する。null・空文字・ASCII spaceのみ・NUL・不正なsurrogateを拒否する。同名の作成は許容する。Commandはtransaction、Queryはread-only transactionで実行し、技術障害はExceptionのまま伝播してrollbackする。Commandは `feature:write`、Queryは `feature:read` Authorityを要求する。
+[ドキュメント一覧](docs/index.md)から目的別に参照できる。
 
-## RESTと認証
+- [技術スタック・version管理](docs/technology-stack.md)
+- [初期セットアップ](docs/getting-started.md)
+- [案件開始チェックリスト・自動化案](docs/project-adoption.md)
+- [architectureと依存方向](docs/architecture.md)
+- [実装・Java・UIの開発規約](docs/developer-guide.md)
+- [DB・migration・jOOQ](docs/database.md)
+- [テストと品質検証](docs/testing.md)
+- [設定・認証・運用・リリース](docs/operations.md)
+- [資料の生成と更新](docs/documentation.md)
+- [メンテナー向け：ビルド・生成ツールの仕組みと保守](docs/toolchain-maintenance.md)
+- [設計判断の正本（ADR）](docs/decisions.md)
 
-| 操作 | 成功時の応答 |
-| --- | --- |
-| `POST /api/v1/features`（JSON: `{"name":"sample"}`） | 201、Location、`{"id":"UUID"}` |
-| `GET /api/v1/features/{id}` | 200、`{"id":"UUID","name":"sample"}` |
-
-認証方式は案件側で接続する。固定ユーザー・自動生成ユーザー・login方式は用意していないため、接続前の外部requestは401となる。CSRF保護を有効にしており、認証済みでも権限不足やCSRF拒否は403となる。errorはProblemDetailを返す。入力形式不正は400、未検出は404、名前の業務validation違反は422、予期しない障害は詳細を伏せた500とする。
-
-## Vaadin画面
-
-`bootRun` で起動後の画面URLは `http://localhost:8080/features`。名前による作成とUUIDによる取得、入力エラー・未検出・権限拒否を表示する。認証済みユーザーにだけrouteを許可し、作成には `feature:write`、取得には `feature:read` を要求する。
-
-認証方式を接続するまでは外部ブラウザーからも401となる。動作確認は `./gradlew integrationTest` を使う。テスト専用sessionを使って実HTTP serverとPostgreSQLに接続し、Chromiumで主要flowを検証する。テスト認証は配布JARには含めない。
-
-初回の統合テストではGradleからPlaywright付属CLIを実行してChromiumを取得するため、network接続とbrowser用disk領域が必要。global Node/npmの操作は不要。画面の確認画像は `build/reports/ui/features.png` に出力する。`bootJar` はVaadinのproduction frontendを含む。
-
-## 運用・横断基盤
-
-`GET /actuator/health` は匿名で利用でき、詳細は返さない。`/actuator/info` と `/actuator/metrics` は `ops:read` Authorityを要求する。HikariCPの接続数などもmetricsから確認できる。
-
-HTTP接続timeoutは `HTTP_CONNECT_TIMEOUT`（default `2s`）、読み取りtimeoutは `HTTP_READ_TIMEOUT`（default `10s`）。正のDurationが必要で、不正設定は起動時に失敗する。案件の外部APIはinfrastructureにHTTP Service interfaceを定義し、Springの `@ImportHttpServices` でgroupへ登録する。Bootから注入したRestClient.Builderとgroup clientに共通設定・loggingが適用される。
-
-HTTP requestごとに生成する `X-Correlation-ID` をresponseとoutgoing requestへ伝播する。MDCの `correlationId` で関連ログを追跡できる。追加した共通ログは引数・body・query・例外messageを出さず、処理結果、所要時間、例外型とstack frameを記録する。
-
-BatchのmetadataはFlywayが `system` schemaへ作成する。Jobは起動時に自動実行しない。案件Jobを作る際は共通 `JobExecutionListener` Beanをbuilderの `listener(...)` に登録する。JobParametersはDBへ保存されるためcredentialを渡さない。Schedulingは有効で、案件の単純な定期処理には `@Scheduled` を使える。業務Job・定期処理はまだ登録していない。
-
-終了はBoot標準graceful shutdownを使い、phaseごとのtimeoutは30秒。file storage・event・async・retry・cacheは必要性が明確になった案件で追加する。
-
-## ドキュメント生成
-
-`./gradlew documentation` はDocker内の固定toolchainを使用する。初回は日本語PDF環境を含むimageの取得・buildに時間とdisk容量を要する。hostへのtbls・Pandoc・LaTeX・npmのinstallと開発DB用passwordは不要。
-
-| 個別task | 出力 |
-| --- | --- |
-| `databaseDocumentation` | `build/documentation/database/`（Markdown / ER SVG） |
-| `apiDocumentation` | `build/documentation/api/v1/openapi.yaml` |
-| `projectDocumentation` | `build/documentation/project/project.pdf` と `diagrams/*.svg` |
-
-DBは開発環境から隔離し、生成終了時・失敗時とも破棄する。生成物はGit管理せず、変更はmigration、Controller metadata、`docs/project/` のMarkdown / Mermaidへ行う。DBの手書き補足は `docs/database/notes/` に置く。
-
-OpenAPI endpointとSwagger UIはdefault無効。案件の認証を接続した環境で `API_DOCUMENTATION_ENABLED=true` とすると、`ops:read` を持つユーザーが `/v3/api-docs.yaml` と `/swagger-ui.html` を利用できる。通常の `check` / `build` は資料生成を含めない。
-
-## 構成と資料
-
-実装はfeature単位で分割し、REST / Vaadin / Batch / Schedulingをadapterとして配置する。Docker設定は `docker/`、生成物はGit管理しない `build/` に集約する。
-
-- [設計判断の正本](docs/decisions.md)
-- [Codex向け指示](AGENTS.md)
-- [architecture](docs/architecture.md)
-- [database](docs/database.md)
-- [実装計画・進捗](docs/implementation-plan.md)
-- [完成条件と検証証跡](docs/starter-verification.md)
-
-資料と実装に矛盾がある場合は `docs/decisions.md` を優先する。
+AIはrootの[AGENTS.md](AGENTS.md)を読み、対象領域のdocsへ進む。資料と実装が矛盾する場合はADRを優先する。

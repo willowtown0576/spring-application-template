@@ -6,9 +6,7 @@ FROM debian:13.1-slim
 RUN rm /etc/apt/sources.list.d/debian.sources \
     && echo 'deb [check-valid-until=no] http://snapshot.debian.org/archive/debian/20260901T000000Z trixie main' > /etc/apt/sources.list \
     && apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates chromium nodejs npm pandoc \
-       texlive-luatex texlive-latex-extra texlive-lang-japanese fonts-noto-cjk \
-       librsvg2-bin graphviz poppler-utils \
+    && apt-get install -y --no-install-recommends ca-certificates chromium nodejs npm fonts-noto-cjk \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=tbls /usr/bin/tbls /usr/local/bin/tbls
 COPY --from=node /usr/local/bin/node /usr/local/bin/node

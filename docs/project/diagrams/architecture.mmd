@@ -1,9 +1,0 @@
-flowchart LR
-  UI[Vaadin] --> API[公開 API]
-  REST[REST] --> API
-  API --> CMD[Command]
-  API --> QUERY[Query]
-  CMD --> DOMAIN[Usecase / Domain]
-  DOMAIN --> STORE[jOOQ]
-  QUERY --> STORE
-  STORE --> DB[(PostgreSQL)]

@@ -1,4154 +1,460 @@
-# Decision Ledger
+# Architecture Decision Records
 
-この文書は `spring-application-starter` における設計判断の**唯一の正本（Source of Truth）**である。
+本書は、このstarterの設計判断の正本である。README、各ガイド、AGENTS.md、実装が矛盾する場合は本書を優先する。操作手順は[ドキュメント一覧](index.md)から参照する。
 
-`AGENTS.md`、`README.md`、`docs/architecture.md`、`docs/database.md`、`docs/implementation-plan.md` その他の設計資料は、この文書と矛盾してはならない。
+## ADRの運用
 
-設計変更が発生した場合は、必ず次の順序で反映する。
+- ADRは背景、決定、影響を記載する。状態は `Accepted`、`Proposed`、`Superseded` を用いる。
+- 設計を変更する場合は、実装前に新しいADRを追加する。既存判断を置き換える場合は旧ADRを `Superseded` とし、後継ADRへリンクする。
+- 誤記や説明の明確化は既存ADRを修正できる。ADRの記載対象は設計課題・判断・理由・影響とする。
+- 「必要時」「案件で決定」とする機能は採用条件を表す。採用時に具体的な契約と検証方法を決める。
+- patch versionの正本はVersion Catalog、BOM、Wrapper、Docker設定である。ADRではその管理元を参照する。frameworkの変更時は採用versionの公式仕様を確認する。
 
-1. `docs/decisions.md` を更新する。
-2. 影響を受ける派生ドキュメントを更新する。
-3. 必要なら実装を変更する。
-4. テスト・静的解析・ドキュメント生成で整合性を確認する。
+## 一覧
 
-派生ドキュメントだけを修正して、新しい設計判断を確定してはならない。
+| ADR | 判断 |
+|---|---|
+| [ADR-001](#adr-001) | 完成した技術基盤と依存方針 |
+| [ADR-002](#adr-002) | 技術スタックとversion管理 |
+| [ADR-003](#adr-003) | Gradle・開発環境・配布境界 |
+| [ADR-004](#adr-004) | Feature単位のModular Monolith |
+| [ADR-005](#adr-005) | Command／Queryとトランザクション |
+| [ADR-006](#adr-006) | 公開契約・Result・最小sample |
+| [ADR-007](#adr-007) | ID・時刻・データ整合性 |
+| [ADR-008](#adr-008) | Flyway・DB環境・jOOQ生成 |
+| [ADR-009](#adr-009) | RESTとAPI versioning |
+| [ADR-010](#adr-010) | 認証・型付き認可 |
+| [ADR-011](#adr-011) | Vaadin標準UIと公開sample |
+| [ADR-012](#adr-012) | HTTP・設定・ログ・運用 |
+| [ADR-013](#adr-013) | Batch・Scheduling・任意機能 |
+| [ADR-014](#adr-014) | テストとコード品質 |
+| [ADR-015](#adr-015) | 再現可能な資料生成 |
+| [ADR-016](#adr-016) | CI・リリース・依存更新 |
+| [ADR-017](#adr-017) | 完成品の資料とAIの作業規則 |
+| [ADR-018](#adr-018) | デフォルト認証とシステム実行主体 |
+| [ADR-019](#adr-019) | 非推奨APIの禁止 |
+| [ADR-020](#adr-020) | AuraとLumoの比較 |
+| [ADR-021](#adr-021) | 標準認証の差し替えと境界の検証 |
+| [ADR-022](#adr-022) | 案件拡張を妨げない生成と検証 |
 
----
+<a id="adr-001"></a>
+## ADR-001: 完成した技術基盤と依存方針
 
-# 1. Status
+**状態:** Accepted
 
-各Decisionは以下のStatusを持つ。
+**背景:** 一人または少人数で小規模〜中規模の業務システムを開発する。案件ごとに設計、build、DB、品質管理を組み直す負担を減らす。
 
-- **Fixed**
-  starterの標準として決定済み。
+**決定:** 業務固有機能を追加して利用する、技術基盤として完成したapplicationを提供する。品質の優先順位は、正しさ、型安全性、データ整合性、セキュリティ、責務、依存方向、保守性、単純さ、実装速度とする。公開可能なコード品質を基準にする。
 
-- **Project-specific**
-  案件ごとに決定する。
+依存を選ぶ順序はJDK標準、Spring標準、導入済みlibrary、成熟した外部library、独自実装。Javaの静的型、不変性、小さい公開API、明示的SQLを使う。abstraction、framework、extension point、wrapper、generic utilityは具体的な要件に基づいて採用する。transaction、security、整合性、境界、意味のあるvalidation・test・error handling、再現可能なbuild・資料生成は必須の品質条件とする。
 
-- **Deferred**
-  必要性は認識しているが、実際に必要になるまで確定しない。
+**影響:** 業務sampleはliteral名 `feature` の最小限にする。業務domainとdirectoryは実装する機能に合わせて定義する。案件固有の選択は、その必要性が明確になった時点で行う。
 
-- **Verify-on-implementation**
-  方針は決まっているが、具体APIや設定方法を実装時点の公式仕様で確認する。
+<a id="adr-002"></a>
+## ADR-002: 技術スタックとversion管理
 
-- **Rejected**
-  検討したが採用しない。
+**状態:** Accepted
 
-- **Superseded**
-  過去のDecisionが後続Decisionによって置き換えられた。
+**背景:** 少人数で保守できる成熟した統合基盤と、再現可能な依存解決が必要である。
 
----
+**決定:** Java 25、Gradle Kotlin DSL／Wrapper／Toolchain／Version Catalog、Spring Boot 4.1系、Vaadin 25／Flow、PostgreSQL、Flyway、jOOQを採用する。Spring MVC、Security／Method Security、Jakarta Validation、Batch JDBC、Scheduling、HTTP Service Client／RestClient、Actuator／Micrometer、Modulithを標準とする。品質・資料ツールは[技術スタック](technology-stack.md)に示す。
 
-# 2. Meta Decisions
+JavaはToolchain、GradleはWrapperと配布SHA、明示dependency／pluginはCatalog、Spring系はBoot BOM、Vaadin系はVaadin BOM、Modulithは専用BOM、application versionはGradle project versionで管理する。codegenもBoot BOMを使う。Docker imageは固定tagを使い `latest` を禁止する。
 
-## D-000 Decision Ledger
+案件要件に応じて採用するもの: JPA／Hibernate ORM、Redis、Kafka、RabbitMQ、JMS、Quartz、Spring Integration、Mail、OAuth2／OIDC／SAML／LDAPの認証方式、React／Angular／Vue、TypeScript中心のfrontend、汎用master import・cache・retry・workflow基盤、巨大なcustom exception階層。Jakarta Validationの実装であるHibernate ValidatorはORMとは別である。
 
-**Status:** Fixed
+**影響:** GradleはWrapper、frontendの実行環境はVaadinのbuild toolingで管理する。dependency追加やmajor upgradeは必要性・互換性を確認する。Renovateは更新提案を行い、mergeは互換性の確認後に行う。
 
-**Decision**
+<a id="adr-003"></a>
+## ADR-003: Gradle・開発環境・配布境界
 
-`docs/decisions.md` を設計判断の唯一の正本とする。
+**状態:** Accepted
 
-**Concrete files**
+**背景:** 実行手順と環境差を減らし、配布物をapplicationの実行に必要な構成へ限定する。
 
-```text
-docs/decisions.md
-```
+**決定:** 開発者向け操作をGradleへ集約する。hostにはJDK 25、Git、Docker、IDEを用意し、applicationはhost JVMで起動する。開発環境はhost JVMを標準とする。VaadinのNode等はbuild toolingが管理する。
 
-**Rules**
+Docker設定は `docker/`、Composeは `docker/compose.yaml` 一つとし、`dev`／`docs` profileで用途を分ける。Composeの用途は一つのfile内のprofileで切り替える。開発PostgreSQLはloopbackの動的port、persistent named volumeを使用する。BootのCompose連携で起動・停止し、dataは保持する。passwordは必須設定とする。
 
-- 設計変更は最初にこの文書へ反映する。
-- `AGENTS.md` 等はこの文書から派生させる。
-- 過去のDecisionを単に消さず、必要に応じて `Rejected` / `Superseded` として履歴を残す。
+`bootRun` は任意のGit管理外 `config/local-env.properties` をUTF-8 Java Propertiesとして読み、環境変数へ注入する。既存環境変数が優先される。読み取りにはJDKのPropertiesを使い、fileはbootRunのローカル設定として扱う。
 
----
+applicationは `src/main/java`、全testは `src/test/java`、生成ツールは独立 `codegen` subprojectに置く。生成jOOQはmainでcompileし配布する。test、codegen実行class／専用依存、開発用Compose／Vaadin devは配布JARの収録対象外とする。`verifyProductionJar` をquality gateにする。
 
-## D-001 AGENTS.md
+生成source／資料／reportは `build/`、subproject出力は `codegen/build/` へ置き、Git管理外とする。Vaadinが生成するfrontend資産と `target/vaadin-dev-server-settings.json` も管理対象外とする。
 
-**Status:** Fixed
+**影響:** 初回buildにはnetworkとDockerが必要である。案件開始時はproject name、group、base package `dev.template.application`、application nameを一括置換する。専用initializerは具体的な必要性に基づいて採用する。
 
-**Decision**
+<a id="adr-004"></a>
+## ADR-004: Feature単位のModular Monolith
 
-rootに**単一の `AGENTS.md`** を置く。
+**状態:** Accepted
 
-nested `AGENTS.md` は作らない。
+**背景:** layerごとに全機能を分割すると、変更範囲と業務上の所有権が見えにくくなる。
 
-**Rationale**
+**決定:** Feature-oriented Modular Monolith、Command／Query分離、意味のある箇所でPorts and Adaptersを採用する。公開packageは `feature.api.command`／`query`、権限契約は `api.authorization` とし、`package-info.java` のNamed Interfaceで公開する。`api.event` は必要なfeatureだけに追加する。
 
-Codexが複数のinstruction sourceを解釈する必要をなくすため。
+module間の参照は公開APIに限定し、依存関係は非循環とする。Spring Modulith `verify()` をmodule境界の正本とし、module境界の検証をModulithへ集約する。ArchUnitはdomainのframework非依存、transaction配置、generated SQL型の参照範囲等を補う。
 
-**Concrete files**
+`public` は外部公開またはJavaのpackage間連携が必要な型に限定する。Beanの可視性は利用範囲に応じて決める。internal実装はpackage-privateを優先し、`protected` は意図した継承に限定する。Javaのpublicなinternal型も、Modulith上は内部実装として扱う。
 
-```text
-AGENTS.md
-```
+**影響:** REST／Vaadin／Batch／Schedulingはadapterとして公開APIを使う。`common` はResult・Clock・ID生成を持ち、他application moduleから独立した共通契約を定義する。生成SQL型の親 `jooq` はopen technical moduleとし、参照をinfrastructureに制限する。[依存図](architecture.md)を参照する。
 
----
+<a id="adr-005"></a>
+## ADR-005: Command／Queryとトランザクション
 
-# 3. Starter Purpose and Principles
+**状態:** Accepted
 
-## D-010 Purpose
+**背景:** 更新の不変条件と参照SQLの最適化は異なる責務である。
 
-**Status:** Fixed
+**決定:** Commandは公開APIの実装からUseCaseを呼び、domainの業務規則を適用する。UseCaseが所有するRepository Portをinfrastructureが実装する。Command実装は入力変換・認可・transaction・UseCase呼び出し・Result返却に限定する。
 
-**Decision**
+Queryは公開APIの実装からDataSource Portを呼び、そのinfrastructure実装で参照処理を行う。DataSourceは `internal.query` が所有し、QueryはDataSource経由でread modelを取得する。内部取得recordから公開read modelへの変換はQuery実装が担う。Repositoryは更新、DataSourceは参照のPortとする。関係は[アーキテクチャの依存図](architecture.md#依存方向)を参照する。
 
-Java / Springによる小規模〜中規模の業務システムを、一人または少人数で高品質かつ高速に構築するための個人用starterとする。
+Command実装methodは `@Transactional`、Query実装methodは `@Transactional(readOnly = true)` を持つ。transactionとSecurityの制御はCommand／Queryの境界に配置する。default propagationは `REQUIRED`、`REQUIRES_NEW` は理由がある場合だけ。transaction境界はSpring proxyを通る呼び出しとする。他featureへの更新は親Commandから対象の公開Command APIを同期呼び出しする。
 
-starterは「空の未完成品」ではなく、**業務固有機能だけが存在しない、技術基盤として完成したapplication**を目指す。
+application Beanはcomponent scanとconstructor injectionで登録する。UseCaseには登録用 `@Service` のみ許可する。domainはSpring非依存。JDKのClockやframework customizerは `@Bean` で構成する。
 
----
+**影響:** CommandとQueryの構造は意図的に非対称となる。SQL／framework型は境界を越えない。DB integration testで実commit、insert後の例外によるrollback、read-onlyを検証する。
 
-## D-011 Quality over shortcuts
+<a id="adr-006"></a>
+## ADR-006: 公開契約・Result・最小sample
 
-**Status:** Fixed
+**状態:** Accepted
 
-**Decision**
+**背景:** 業務上の拒否と技術障害を区別し、adapterによらず同じ契約を使用する。
 
-実装速度のために品質を犠牲にしない。
+**決定:** 公開API入力は用途別Param record、参照出力は用途別read modelとする。共通sealed `Result<S,F>` のvariantは `Success`／`Failure`、成功値と型付き失敗理由は非null。Commandは原則Resultを返す。単純Queryは値やOptionalを直接返し、意味のある業務失敗がある場合のみResultを使う。
 
-速度は、設計判断や品質管理を事前に標準化・自動化することで得る。
+期待される業務結果はFailure、予期しない技術障害・到達不能な内部状態はException。業務失敗は型付き理由、技術障害は意味を持つ既存Exceptionで表現する。transaction内の技術例外は境界へ伝播し、rollbackを成立させる。例外変換が必要ならrollback semanticsを保つ境界で行う。
 
-優先順位:
+最小sample契約:
 
-1. 正しさ
-2. 型安全性
-3. データ整合性
-4. セキュリティ
-5. 責務の明確さ
-6. 依存方向の明確さ
-7. 保守性
-8. 単純さ
-9. 実装速度
+- `FeatureCommands.create(CreateFeatureParam)` の戻り値は `Result<UUID, CreateFailure>`。
+- `FeatureQueries.find(FindFeatureParam)` の戻り値は `Optional<FeatureResult>`。未検出はempty。
+- nameは1〜100 Unicode code point。null、空文字、ASCII spaceのみ、NUL、不正surrogateを拒否し `INVALID_NAME` を返す。入力文字列をそのまま保存する。同名作成を許可する。
+- null Param自体とnull検索IDはprogramming errorとして拒否する。
+- `FeatureCommandsImpl`／`FeatureQueriesImpl`、`JooqFeatureRepository`／`JooqFeatureDataSource` を用いる。DataSourceは内部 `FeatureData` を返す。
 
----
+**影響:** RESTはFailureをHTTP status／ProblemDetailへ、Vaadinは利用者向け表示へ、BatchはJobの意味に応じた終了状態へ変換する。技術例外はrollback／Job failureと共通error handlingの対象となる。
 
-## D-012 Code quality target
+<a id="adr-007"></a>
+## ADR-007: ID・時刻・データ整合性
 
-**Status:** Fixed
+**状態:** Accepted
 
-**Decision**
+**背景:** applicationとPostgreSQLの型・制約を一致させる。
 
-コードは公開しても恥ずかしくない品質を基準とする。
+**決定:** IDはapplication側生成のUUID v7、JavaはUUID、DBはuuid。Java標準APIで不足するv7生成にはuuid-creatorを使う。`UuidV7Generator` はinjectable Clockを受け `Supplier<UUID>` を提供する。domainのfeature固有ID Value Objectは必要時に使い、Queryではraw UUIDを許可する。業務IDの生成責任はapplicationに置く。
 
-starterだからという理由で仮実装や雑な設計を許容しない。
+実時刻はInstant／timestamptz、業務日付はLocalDate／date、時刻のみはLocalTime／time、地域計算はZonedDateTime＋ZoneId、外部offset付き時刻はOffsetDateTimeから必要に応じInstantへ変換する。内部UTC、productionはClock.systemUTC、testはClock.fixed。timezoneを明示して処理する。
 
----
+schemaは原則featureが所有する。他featureへの直接INSERT／UPDATE／DELETEは禁止、参照JOINは許可する。cross-feature queryのView／projection等の構造とcross-feature FKは必要時に整合性・自律性を比較して決める。同feature内のFKは積極的に使う。技術schemaは必要時に作る。
 
-## D-013 YAGNI
+命名・型・nullabilityは[DB規約](database.md)に従う。金額はBigDecimal／numeric、長さ制限はValidationとDBを一致させる。booleanは本当に二値の概念に限定する。audit列は必要なtableだけ、actor設定は案件で決める。削除はphysical delete、soft deleteの採用は案件要件で判断し、履歴要件は履歴modelで表す。
 
-**Status:** Fixed
+**影響:** 最小tableは `feature.feature(id, name)` とし、NOT NULL、PK、100文字制約、ASCII spaceだけの値を拒否するCHECKを持つ。seed・audit・名前のUNIQUEは不要。Spring Batch所有metadataはframework互換性のため、その型・数値ID・nullable規則を維持する。
 
-**Decision**
+<a id="adr-008"></a>
+## ADR-008: Flyway・DB環境・jOOQ生成
 
-将来使うかもしれないという理由だけで抽象化・framework・extension pointを作らない。
+**状態:** Accepted
 
-ただし以下をYAGNIの名目で削らない。
+**背景:** migrationからschemaと生成型を再現する必要がある。
 
-- type safety
-- transaction safety
-- security
-- data integrity
-- module boundary
-- meaningful validation
-- meaningful tests
-- required error handling
-- reproducible build
-- reproducible documentation generation
+**決定:** Flyway migrationをschema変更履歴の正本とする。適用済みmigrationは履歴として保持し、変更は新migrationで行う。`db/migration/<feature>/` を標準再帰scanし、versionはapplication全体で一意、履歴は `public.flyway_schema_history` とする。schema作成とCOMMENTはSQLに含める。migrationの読み込みはFlyway標準のscanを使用する。productionも原則startup時に適用し、運用要件により事前適用を許可する。
 
----
+DBは4用途に分離する: persistentな開発Compose、Testcontainersのtest、一時codegen DB、一時資料DB。codegenと資料には各用途の一時DBを使用する。
 
-# 4. Technology Stack
+jOOQは一時PostgreSQLへFlywayを適用し、標準GenerationToolでSQL型を生成してDBを破棄する。[生成フロー](database.md#4用途のdb)を参照する。独立codegen subprojectのJavaExecを使い、生成先は `build/generated-src/jooq/`、packageは `dev.template.application.jooq.<schema>`。現行対象はfeature schema。日時等の非決定的生成情報を抑え、inputs／outputsを宣言して不要な再生成を避ける。失敗時も一時DBを後始末する。
 
-## D-020 Java
+generated型は原則 `internal.infrastructure` からだけ参照し、変更は再生成で行いGit管理外とする。生成sourceをCheckstyle／SpotBugs／coverage対象から除外するが、解析用classpathには保持する。手書きcodegenは品質検査する。
 
-**Status:** Fixed
+**影響:** DockerをDB testの必須実行条件とする。starter動作に必要な最小system／sample dataはFlywayで登録可能だが、業務masterの大量・高頻度更新や汎用import基盤には用いない。
 
-**Decision**
+<a id="adr-009"></a>
+## ADR-009: RESTとAPI versioning
 
-Java 25を使用する。
+**状態:** Accepted
 
----
+**背景:** HTTPの都合を業務契約へ持ち込まず、標準の応答を使う。
 
-## D-021 Gradle
+**決定:** Controllerは `web.rest` に置き、feature公開APIだけを呼ぶ。HTTP固有DTOはadapterに閉じる。URLは複数形の名詞、非CRUD操作は必要に応じaction subresourceを使う。JSONはJackson標準のcamelCase／ISO-8601、JSON表現はJackson標準を基本とする。
 
-**Status:** Fixed
+major versionは `/api/v1`。Spring MVC標準path segment解決を使い、breaking changeのみmajorを増やす。version追加は非互換変更の導入時に行い、解決はSpring MVC標準に委ねる。deprecation／sunsetは必要時に標準mechanismを使う。
 
-**Decision**
+成功は200／201／204、入力形式は400、未認証401、権限不足403、未検出404、競合409、意味上の業務拒否422、予期しない障害500。errorはSpring ProblemDetailを使い、必要なときだけstable machine codeを付ける。Security例外は認証・認可のHTTP statusで扱う。
 
-以下を使用する。
+sampleはPOST `/api/v1/features` で201＋Location＋ID、GET `/api/v1/features/{id}` でFeatureResultを返す。nameの欠落／nullと不正JSON／UUIDは400、名前の業務制約は422、未登録404、未対応version400。文字数の検証単位はUnicode code pointとする。
 
-- Gradle Kotlin DSL
-- Gradle Wrapper
-- Gradle Java Toolchain
-- Gradle Version Catalog
+pagination／sortはQueryのtyped conceptとする。offset、Slice、Page、keysetは用途で選び、COUNTは総件数を必要とするQueryに限定する。大量・深いpageはseekを検討する。sortはenum等へ変換し、外部のsort指定は許可したSQL columnへ対応付ける。paginationの型はQueryの契約で定義する。
 
-Groovy DSLはstarter標準にしない。
+**影響:** MockMvcで正常系、validation、認可、500の情報秘匿を検証する。API資料は実Controller metadataから生成する。
 
-global Gradle installationを要求しない。
+<a id="adr-010"></a>
+## ADR-010: 認証・型付き認可
 
----
+**状態:** Superseded — [ADR-018](#adr-018)。以下は従来の判断。
 
-## D-022 Spring Boot
+**背景:** 認証方式は案件で選択し、認証構成の有無にかかわらず業務操作に認可を適用する。
 
-**Status:** Fixed / Verify-on-implementation
+**決定:** Spring Securityと `@EnableMethodSecurity` を有効にする。認証ユーザーとlogin方式はlocal認証・OIDC等の案件側の構成で定義する。RESTとDB連携UIは認証必須、公開welcome／部品集は認証不要とする。
 
-**Decision**
+本認可は `internal.command`／`internal.query` のMethod Security、URL／routeは粗い入口制限。業務操作の権限は公開APIの境界で検証する。RoleはAuthority集合として扱う。業務Authorityはfeatureが所有し、Authority定義をfeature内へ集約する。
 
-Spring Boot 4.1.x系を前提とする。
+`FeatureAuthority` enumはGrantedAuthorityを実装し `feature:read`／`feature:write` を所有する。Spring標準meta-annotation templateにより `@RequiresFeatureAuthority(...)` をtransaction境界へ指定する。運用権限 `ops:read` はOperationsAuthorityが所有する。認可判定にはSpring標準機構を使う。
 
-具体minor / patchは実装時に公式情報を確認する。
+Spring Security型の利用範囲はsecurityと認可adapterとする。操作者が必要ならsecurity adapterでActor／UserId等へ変換する。Batch／Schedulingはシステム実行主体として認証・認可する。
 
----
+CSRF保護を保持し、Vaadin内部通信は標準VaadinSecurityConfigurerに委ねる。未認証401、認証済み権限不足／CSRF拒否403。Actuatorはhealthを詳細なし匿名公開、info／metricsをops:readで保護する。その他endpointの公開は運用要件で選択する。
 
-## D-023 Vaadin
+**影響:** 認証接続前の `/features` とRESTの401は正しい動作となる。正常系は配布されないtest専用認証で検証する。認証追加時にも直接Command／Query呼び出しの認可を維持する。
 
-**Status:** Fixed
+<a id="adr-011"></a>
+## ADR-011: Vaadin標準UIと公開sample
 
-**Decision**
+**状態:** Accepted
 
-Vaadin 25 / Vaadin Flowを標準UI technologyとする。
+**背景:** 初回起動時から完成した画面と部品の使い方を確認できる必要がある。
 
-React / Angular / Vue / TypeScript中心のfrontend stackはbaselineにしない。
+**決定:** Vaadin core／FlowとSpring連携を使用する。Viewは `web.ui` に置き、業務操作は公開APIへ委譲する。Vaadin型の利用範囲はweb.uiとし、標準依存はVaadinの無償core componentに限定する。
 
----
+`/` はwelcome、`/components` は部品集として匿名公開し、`/features` は認証必須のDB作成・ID検索例とする。部品集のサンプルはView内Listに保持する。画面内連番の行recordと入力recordを分け、編集時のIDを維持する。パスワード入力例は架空値用とし、入力値の利用範囲は当該入力欄に限定する。
 
-## D-024 Database
+Aura既定theme、AppLayout／SideNav、Card、標準Button／Grid variantを使う。装飾と配色はVaadin提供のstyleに統一する。FormLayout／AppLayout／MasterDetailLayoutの標準responsive機能を使い、Page.setColorSchemeで現在のブラウザーUIの明暗表示を切り替える。
 
-**Status:** Fixed
+部品集は一覧検索・sort・filter、Binder／入力validation、Dialog／ConfirmDialog、Tabs、通知、ProgressBar、Details、日付・数値・時刻・メール・パスワード、単一／複数選択、Checkbox、Accordion、MenuBar、Avatar、Tooltip、Icon、一覧詳細、カードとボタンのvariantを操作できる例とする。
 
-**Decision**
+**影響:** 標準precompiled frontendを優先し、production frontendをJARへ含める。Vaadin devはdevelopmentOnly。Playwrightをtest専用とし、Chromiumで公開導線、DB画面、拒否、明暗・mobile表示を検証する。
 
-PostgreSQLを使用する。
+<a id="adr-012"></a>
+## ADR-012: HTTP・設定・ログ・運用
 
----
+**状態:** Accepted
 
-## D-025 Database access
+**背景:** 通信障害や運用情報を業務コードから分離し、機密を出さずに観測可能にする。
 
-**Status:** Fixed
+**決定:** 外部HTTPはHTTP Service Client、RestClient、必要なreactive／streamingに限りWebClientの順で選ぶ。新規の同期HTTP実装はHTTP Service ClientまたはRestClientとする。Boot標準HTTP Service Groupと注入されたBuilderを使い、外部DTOとcredentialはinfrastructureに閉じる。業務側は自身が必要なPortを定義する。
 
-**Decision**
+connect／read timeoutは明示し、環境変数からDurationとして設定する。標準値は2秒／10秒、正値を起動時検証する。default retryは行わず、特にPOST／PUT／PATCHは冪等性と失敗時の意味を確認した場合だけ個別採用する。意味のある外部応答はFailureに変換可能、network／timeout／5xx／protocol異常はExceptionとする。
 
-- Flyway
-- jOOQ
+環境依存値は環境変数、application.ymlは安定設定・mapping・安全なdefaultに限定する。secretはGit管理外とする。custom設定は `@ConfigurationProperties @Validated record` と型付き値を使い、必須不足・不正値はstartup failureとしてtestする。散在する@Valueや環境別YAMLの大量複製を避ける。JAR／OCIも同じ設定modelを使う。
 
-を使用する。
+loggingはtop-level `logging` のAOP／filter／interceptorで行う。Command開始・終了INFO、Query DEBUG、期待Failure INFO、予期しない障害ERROR。WARNはwarningの場合だけ。business codeの通常logger callとmarker annotation基盤を避け、AOPで表現できないtechnical eventのみ直接記録を許可する。
 
-JPA / Hibernateは使用しない。
+共通ログの記録項目は処理の識別と診断に必要な非機密情報に限定する。applicationの共通loggerでは技術例外のmessageを伏せて型・stack frameを記録する。Spring Batch自身のログとmetadataへの例外記録はこの秘匿処理の対象外であり、詳細は運用ガイドを参照する。受信HTTPにはserver生成の相関IDを付与し、MDCを終了時に復元する。X-Correlation-IDをresponseとoutgoingへ伝播する。標準のHTTPログはmethod、host、status、時間等のmetadataに限定する。
 
----
+HikariCPはBoot標準を使い、poolのtuningは計測結果に基づいて行う。Actuator／Micrometerでpoolを観測可能にする。Prometheus、OpenTelemetry、JSON loggingは必要時に追加する。終了はBoot標準graceful shutdown、phase timeoutは30秒。
 
-## D-026 Spring baseline technologies
+**影響:** timeout・相関ID・非retryを実HTTPで、設定検証とログ秘匿をtestする。HTTPとshutdownの制御はSpring標準機構に委ねる。
 
-**Status:** Fixed
+<a id="adr-013"></a>
+## ADR-013: Batch・Scheduling・任意機能
 
-**Decision**
+**状態:** Accepted
 
-以下を利用可能なbaselineとする。
+**背景:** 技術基盤を用意しつつ、常駐処理の追加を業務要件に基づいて判断する。
 
-- Spring MVC
-- Spring Security
-- Jakarta Validation
-- Spring Batch
-- Spring Scheduling
-- Spring RestClient
-- Spring HTTP Service Client
-- Spring Boot Actuator
-- Spring Modulith
+**決定:** Batchはrestart／history／chunkが必要な処理に使う。top-level `batch` adapterから公開APIを呼ぶ。Boot Batch JDBCと公式PostgreSQL metadata DDLを使用し、Flywayの `system` schemaで管理する。table prefixは `system.BATCH_`、Bootのschema初期化はnever。framework metadataの型・ID生成は公式仕様を維持し、constraint名はrepository規約に合わせる。
 
----
+Job自動起動は無効。稼働Jobは案件の要件に基づいて実装し、基盤のmetadataと終了状態はtest用Jobで検証する。共通JobExecutionListenerを案件のJob builderへ明示登録する。JobParameters／ExecutionContextは永続化されるため保存内容は処理に必要な非機密情報に限定する。launcherのparameter全文INFO logはWARN thresholdで抑える。FailureはJobの意味で処理し、予期しないExceptionはJob failureとする。
 
-## D-027 Test and quality tools
+Schedulingは@EnableSchedulingと標準scheduler、単純定期処理は@Scheduledを使う。業務処理は公開APIに委譲する。定期処理の実装とschedulerの選択は業務要件に基づいて行う。
 
-**Status:** Fixed
+以下は必要性が明確な案件だけに導入する。
 
-**Decision**
+| 対象 | 採用条件・守る境界 |
+|---|---|
+| Event | 通常は同期公開API。即時結果が不要な副作用にModulith Event。api.eventとpublication metadataは必要時に設計 |
+| Async | 同期がdefault。transaction、順序、重複、失敗復旧、retryを明確にする |
+| Cache | 計測で必要箇所を特定し、無効化・整合性を設計。Spring Cache／Caffeine／Redisの採用は計測結果で判断する |
+| Mail／通知 | 標準にMailを含めず、業務が必要とするPortとadapterで接続 |
+| File I/O | upload／downloadはweb、永続storageはPort。MultipartFile／response／StreamResource／Path／raw streamを業務APIへ漏らさない |
+| File安全性 | 保存pathはUUID等の内部名から構築する。size／MIME／拡張子／内容を必要に応じ検証し、path traversalを防ぐ。適切な一時領域を使い後始末し、大容量はstream処理とする |
+| CSV | UTF-8、comma、適切なquoting、LF／CRLF。独自parserを作らず成熟libraryを使う |
+| Excel／業務PDF | 案件の出力要件がある場合だけ追加 |
 
-- JUnit
-- AssertJ
-- Testcontainers
-- Spotless
-- Checkstyle
-- SpotBugs
-- JaCoCo
-- ArchUnit
+**影響:** Port／event／storage／workflow等は実要件に合わせて追加する。任意機能を追加する際も認可・transaction・失敗時の安全性を維持する。
 
-を標準利用する。
+<a id="adr-014"></a>
+## ADR-014: テストとコード品質
 
----
+**状態:** Accepted。taskの責務は[ADR-025](#adr-025)で更新。
 
-## D-028 Documentation tools
+**背景:** 少人数で継続的に品質を保つには、意味のある自動検査と読みやすいコードが必要である。
 
-**Status:** Fixed
+**決定:** JUnit／AssertJでdomain・UseCaseの単体testをSpringなしで行う。DB統合は実PostgreSQL／Testcontainersを使う。適用migration、制約、公開API、rollback、認可、必要なJOIN／paginationを検証する。RESTはMockMvc、主要UI flowはPlaywright、module境界はModulithと追加ArchUnit規則で検証する。SpringBootTestは統合が必要な範囲に限定する。
 
-**Decision**
+testは全てsrc/test/javaに置き、JUnit Tag `integration`／`architecture`／`documentation` でtaskを分ける。命名はFooTest／FooIntegrationTest／ArchitectureTest。test専用認証はtest sourceに配置する。
 
-- springdoc-openapi
-- tbls
-- Markdown
-- Mermaid
-- Pandoc
-- LuaLaTeX
+SpotlessはEclipse JDTを使用し、通常indent4スペース、継続行は追加4スペース、行幅120とする。arrowと本体は収まれば同じ行にし、過剰な既存折り返しを再結合する。設定は `config/formatter/eclipse-java.xml`。importOrder／removeUnusedImportsを併用し、member順はsourceの定義順を保持する。
 
-を標準とする。
+再代入しないlocal variable・parameter・fieldはfinal。record component等の暗黙finalと再代入が必要な変数は適切に扱う。testもconstructor injection、MockitoSpyBeanは型宣言＋constructor injection。変更可能fieldは理由を示した狭い例外に限定する。全ての手書き型・methodに責務と契約を説明するJavaDocを付け、Overrideは{@inheritDoc}、test／lifecycleは条件と期待結果を書く。
 
----
+Checkstyleはunused／redundant import、JavaDoc、final等を検査する。SpotBugsは欠陥候補を検出し、抑制は根拠のある狭い対象だけ。JaCoCoでunit＋integration coverageを出力し、数値thresholdは案件の品質目標に応じて設定する。quality gateはformat、静的解析、unit／integration／architecture、coverage、codegen検査、配布JAR境界を含む。
 
-## D-029 Repository automation
+**影響:** 品質検査のために意味のないtestを増やさない。自動import整理で検出できない意味上冗長なimport等はreviewでも確認する。詳細な実行方法と検査範囲は[検証ガイド](testing.md)に置く。
 
-**Status:** Fixed
+<a id="adr-015"></a>
+## ADR-015: 再現可能な資料生成
 
-**Decision**
+**状態:** Accepted。資料配置・ER表示は[ADR-023](#adr-023)、PDF生成・配布は[ADR-024](#adr-024)で更新。
 
-- GitHub Actions
-- Renovate
+**背景:** 実装から離れた資料やhost依存の日本語PDF生成を避ける。
 
-を利用する。
+**決定:** 手書き資料の正本はMarkdown、図はMermaid。DB資料は一時PostgreSQLへ実migrationを適用してtblsで生成する。説明はPostgreSQL COMMENT、設定は.tbls.yml、手書き補足はdocs/database/notes。ERはSVGを優先し、tblsのschema出力からDOTを生成してGraphvizで描画する。
 
----
+OpenAPIはspringdocとController metadataから生成し、annotationを過剰に付けない。出力はversion別 `build/documentation/api/v1/openapi.yaml`。OpenAPI／Swagger UIはdefault無効、有効化時もops:readで保護する。API資料の生成元はspringdocへ統一する。
 
-# 5. Dependency Policy
+project PDFは `docs/project/` のMarkdownとMermaidから生成する。MermaidはSVGへ事前renderし、Pandoc＋LuaLaTeXと日本語fontを使用する。font fileはcontainerへのinstallで供給する。tbls、Mermaid CLI、Pandoc、LuaLaTeX、font、Graphvizを `docker/docs/Dockerfile` の固定toolchainへ集約する。Node／Mermaidは固定versionとpackage-lock／npm ci、OS packageは固定Debian snapshotを使用する。
 
-## D-030 Dependency priority
+`documentation` はdatabaseDocumentation／apiDocumentation／projectDocumentationを集約し、実行入口を資料生成commandに分ける。出力は `build/documentation/{database,api,project}`。一時DBは一意のCompose projectで分離し、成功・失敗時とも破棄する。生成資料はGit管理外とし、修正はsourceの更新と再生成によって行う。
 
-**Status:** Fixed
+**影響:** 初回資料生成はimage取得・buildに時間を要する。PDFは文字欠け・図の可読性・改頁を描画結果で確認する。操作方法は[資料生成](documentation.md)に置く。
 
-**Decision**
+<a id="adr-016"></a>
+## ADR-016: CI・リリース・依存更新
 
-新しい機能が必要な場合は以下の順に検討する。
+**状態:** Accepted。PDF配布は[ADR-024](#adr-024)で廃止。
 
-1. JDK標準API
-2. Spring標準機能
-3. 既存導入済みlibrary
-4. 十分成熟した外部library
-5. 独自実装
+**背景:** ローカルとCIで同じ検証を行い、配布物とversionを対応させる。
 
----
+**決定:** GitHub ActionsはGradleを呼び、build logicの正本をGradleへ集約する。CIはbranch push／PRでcheck／buildを行う。Ubuntu 24.04、JDK 25、SHA固定Actions、最小権限contents:read、checkout credential非保持を使う。
 
-## D-031 Default exclusions
+正式配布物はexecutable JAR。OCIはSpring Boot Buildpacksを使い、image構築をBuildpacksへ委ねる。Paketo builder／run imageはCatalogで固定する。配置先、registry push、production secretは案件で決める。
 
-**Status:** Fixed
+application versionはGradleのSemVer、API versionとは独立する。releaseはsuffixなしの `major.minor.patch` と一致する `v<version>` tagを要求する。tag releaseではcheck、build、資料、OCI生成を検証し、JAR／OpenAPI YAML／DB資料ZIP／project PDFを添付する。公開jobだけcontents:writeを持ち、workflow_dispatchはbuildとartifact保存を担当する。
 
-**Decision**
+RenovateはGradle dependency／plugin／Wrapper、Docker、Actions、資料用npmを追跡する。PostgreSQLのCompose／Catalog、Paketo imageはgroup化する。auto-mergeは無効、Debian snapshot日付は手動検証で更新する。
 
-以下はstarter baselineに含めない。
+**影響:** repositoryのActions、Renovate App、branch protectionとdeployment環境は案件側で接続する。外部サービスの設定と公開は配置先で受入確認する。[運用・リリース](operations.md)に手順を置く。
 
-- Spring Data JPA
-- Hibernate
-- Redis
-- Kafka
-- RabbitMQ
-- JMS
-- Quartz
-- Spring Integration
-- Mail
-- OAuth2
-- OIDC
-- SAML
-- LDAP
-- React
-- Angular
-- Vue
-- TypeScript中心のfrontend
-- generic master-data import framework
-- generic cache framework
-- generic retry framework
-- generic workflow framework
-- giant custom exception hierarchy
+<a id="adr-017"></a>
+## ADR-017: 完成品の資料とAIの作業規則
 
----
+**状態:** Accepted
 
-# 6. Version Management
+**背景:** 開発者とAIがrepository内の資料から保守に必要な仕様と手順を理解できる必要がある。
 
-## D-040 Version ownership
+**決定:** READMEを起動・開発・全体思想の入口、docs/index.mdを資料一覧とする。docsにはarchitecture、stack、setup、開発規約、DB、運用、品質検証、資料生成とADRを置く。作業経緯・進捗・実行結果の記録先はIssue・会話・CI reportとする。検証方法と保証範囲は記載し、実行結果はCI reportや変更の報告で示す。
 
-**Status:** Fixed
+rootのAGENTS.mdだけをAI向け指示書に使う。読むべきdocs、変更時の前提、品質確認を示す。AI向け指示の配置先はrootの一つに集約する。生成物は会話の成果物ではなく、最初から存在していたコードとして書く。ソースコメント・JavaDoc・資料は現在の契約、責務、理由、操作方法を説明する。
 
-**Decision**
+AIはREADME、AGENTS、ADRと対象領域の資料・実装を読み、既存変更を保持する。設計変更はADRが先、実装と手順の変更は同時に整合させる。依頼範囲の必要な作業を完了し、実装範囲は依頼の達成に必要な機能とする。完了前にbuildを実行し、資料変更時は該当生成も確認する。未実行・失敗・外部設定の未確認は、それぞれの状態を明記する。
 
-- Java → Gradle Toolchain
-- Gradle → Wrapper
-- explicit dependencies/plugins → Version Catalog
-- Spring ecosystem → Spring Boot dependency management / BOM
-- Vaadin ecosystem → Vaadin BOM
-- Docker images → explicit pinned version
-- application version → Gradle project version
+**影響:** 作業計画と会話は開発の補助情報とし、製品仕様の正本はdocsに置く。補助skillの適用時も型安全性、整合性、security、意味のあるtestと再現性を品質条件とする。
 
-versionをbuild script各所へ散在させない。
+<a id="adr-018"></a>
+## ADR-018: デフォルト認証と利用者・システム実行主体
 
----
+**状態:** Accepted
 
-## D-041 Docker latest
+**背景:** Web、Batch、Schedulerから同じ公開Command／Queryを安全に呼ぶため、認証と実行主体を標準で用意する必要がある。
 
-**Status:** Rejected
+**決定:** ADR-010の認証方式未提供方針を置き換える。Spring Securityのフォーム認証とVaadin LoginForm、標準logoutを提供する。利用者は明示設定したAPP_USER_NAME／APP_USER_PASSWORDで作成し、passwordは実行環境から明示設定する。passwordは12文字以上、BCryptの上限72 UTF-8 bytes以下を要求し、起動時にencodeして標準InMemoryUserDetailsManagerへ登録する。利用者名のsystem: prefixはシステム主体用に予約する。設定のtoStringはsecretを伏せる。設定不足はstartup failureとする。標準利用者にはfeature:read／writeを付与し、運用権限はAPP_USER_OPERATIONS_READ=trueの場合だけ付与する。利用者管理・永続ユーザーDBは標準に含めず、複数ユーザーや外部認証が必要な案件ではUserDetailsService／認証providerを置き換える。
 
-**Decision**
+Webはsession認証、保護UIはloginへ誘導する。REST／Actuator／API資料は未認証401を維持する。CSRFとsession fixation対策を標準機構で維持し、logout後はsessionを無効化する。認可はCommand／Queryで引き続きAuthorityを要求する。feature所有の権限enum、標準meta-annotation template、運用権限の分離、最小限のActuator公開という認可規約を維持する。
 
-Docker imageで `latest` を使用しない。
+システム主体はsecurityのSystemActorで定義する。BATCHはfeature:read／write、SCHEDULERはfeature:readのみとし、権限は列挙した業務Authorityに限定し、credentialは空とする。信頼されたprocess内のbatch／scheduling adapterだけがSystemExecutionから明示的に選択できる。主体と権限は信頼されたadapterのコードから選択する。SystemExecutionはSpring標準DelegatingSecurityContextCallableを使い、新しいcontextで呼び出し、正常・例外・nested呼び出し後に以前のcontextを復元する。非同期処理では実際に業務APIを呼ぶworker内で境界を開始する。業務操作には利用者と同じ認可規則を適用する。
 
----
+システム実行には、利用者と区別された主体と明示的なAuthorityを使用する。domain／UseCaseへSecurityContextを持ち込まず、system境界の呼び出しをArchUnitでbatch／scheduling／securityに制限する。
 
-## D-042 Renovate
+**影響:** 実フォームlogin・失敗・logout、REST session認証とCSRF、BatchのCommand呼び出しとrollback、scheduler workerのQueryと書き込み拒否、context復元を検証する。認証設定は各環境で供給し、test credentialはtest用classpathに限定する。認証基盤を変更してもAuthorityとCommand／Query境界を維持する。
 
-**Status:** Fixed
+参照: [Vaadin Security Configurer](https://vaadin.com/docs/latest/flow/security/vaadin-security-configurer)、[Spring Security concurrency](https://docs.spring.io/spring-security/reference/features/integrations/concurrency.html)。
 
-**Decision**
+<a id="adr-019"></a>
+## ADR-019: 非推奨APIの禁止
 
-以下を追跡する。
+**状態:** Accepted
 
-- Gradle dependencies
-- Gradle plugins
-- Gradle Wrapper
-- Docker images
-- GitHub Actions
+**背景:** library更新で非推奨になったAPIを警告だけで放置すると、削除時の移行負担が増える。
 
-Spring Boot / Vaadin等のmajor upgradeをblind auto-mergeしない。
+**決定:** rootとcodegenの全JavaCompileで `-Xlint:deprecation`、`-Xlint:removal`、`-Werror` を指定する。依存先の型・method・fieldを解決するJavaコンパイラーを検出の正本とし、main／test／codegenの非推奨API参照をcompile失敗にする。検出した参照は推奨APIへ置き換える。CheckstyleのSuppressWarnings検査でdeprecation／removal／allの抑制指定も拒否する。
 
----
+**影響:** 通常のtest／build／CIで検出する。生成sourceも同じcompile設定を受けるため、生成器との互換性を維持する。検出対象は本projectのJava sourceからのAPI参照とする。
 
-# 7. Repository Structure
+<a id="adr-020"></a>
+## ADR-020: AuraとLumoの比較
 
-## D-050 Logical project structure
+**状態:** Accepted
 
-**Status:** Fixed
+**背景:** 同じ画面部品を操作しながら、標準テーマの外観を比較できる必要がある。
 
-**Decision**
+**決定:** 通常画面はAuraを維持し、匿名公開の `/theme-comparison` にAuraとLumoの比較を用意する。既存の部品集をlayoutなしの `/theme-preview` でも公開し、別documentの同一origin iframeへ表示する。AppShellConfiguratorはpreviewの固定query値に応じ、Vaadin提供のAuraまたはLumo stylesheetを一つだけ読み込む。画面の装飾はVaadin標準styleとする。
 
-完成時の論理構成を以下とする。
+比較画面は明暗を共通操作で切り替え、狭い画面では縦に配置する。各previewの操作・sample dataは独立し、明暗切替による再読み込みで初期化する。UI filter chainのframe制限はSAMEORIGINとし、他originからの埋め込みを拒否する。REST／Actuator／API資料の制限は維持する。
 
-```text
-spring-application-starter/
-├── AGENTS.md
-├── README.md
-├── build.gradle.kts
-├── settings.gradle.kts
-├── gradle.properties
-├── gradlew
-├── gradlew.bat
-├── .gitignore
-├── .gitattributes
-├── .tbls.yml
-├── renovate.json
-│
-├── gradle/
-│   ├── libs.versions.toml
-│   └── wrapper/
-│
-├── config/
-│   └── checkstyle/
-│       └── checkstyle.xml
-│
-├── docker/
-│   ├── compose.yaml
-│   └── docs/
-│       └── Dockerfile
-│
-├── docs/
-│   ├── decisions.md
-│   ├── architecture.md
-│   ├── database.md
-│   ├── implementation-plan.md
-│   ├── project/
-│   │   ├── index.md
-│   │   └── diagrams/
-│   └── database/
-│       ├── generated/
-│       └── notes/
-│
-├── src/
-│   ├── main/
-│   │   ├── java/
-│   │   │   └── dev/template/application/
-│   │   │       ├── Application.java
-│   │   │       ├── feature/
-│   │   │       │   ├── api/
-│   │   │       │   │   ├── command/
-│   │   │       │   │   └── query/
-│   │   │       │   └── internal/
-│   │   │       │       ├── command/
-│   │   │       │       ├── query/
-│   │   │       │       ├── usecase/
-│   │   │       │       ├── domain/
-│   │   │       │       └── infrastructure/
-│   │   │       ├── web/
-│   │   │       │   ├── ui/
-│   │   │       │   └── rest/
-│   │   │       ├── batch/
-│   │   │       ├── scheduling/
-│   │   │       ├── security/
-│   │   │       └── logging/
-│   │   └── resources/
-│   │       ├── application.yml
-│   │       └── db/
-│   │           └── migration/
-│   │
-│   ├── test/
-│   │   └── java/
-│   ├── integrationTest/
-│   │   └── java/
-│   └── architectureTest/
-│       └── java/
-│
-└── .github/
-    └── workflows/
-        ├── ci.yml
-        └── release.yml
-```
+**影響:** 共通の部品集を使い、全タブを両テーマで試せる。実browserでstylesheetの分離、操作、明暗、mobile表示を検証する。
 
-このツリーは論理構成を表す。
+<a id="adr-021"></a>
+## ADR-021: 標準認証の差し替えと境界の検証
 
-空directoryを構造維持だけのために大量生成しない。
+**状態:** Accepted
 
----
+**背景:** 標準認証の置換条件はBootのauto-configurationで評価する必要がある。ブラウザーからのREST操作には実際のCSRF token受け渡しが必要であり、context path配下への配置も考慮する。認可・transactionの両方を書き忘れた実装や、非推奨宣言によるcompiler警告抑制も品質検査の対象とする。
 
-## D-051 Generated output
+**決定:** LocalAuthenticationConfigurationをBootのAutoConfiguration.importsで登録し、利用者のUserDetailsService定義後に条件評価する。登録順の制御はBootのauto-configuration機構に委ねる。
 
-**Status:** Fixed
+REST・API資料・UIのCSRF設定にはSpring Security標準のspa()を使用する。XSRF-TOKEN cookieとX-XSRF-TOKEN headerを使用し、springdocのCSRF連携を有効にする。login／logoutでtokenを更新し、Vaadin内部通信の扱いはVaadinSecurityConfigurerに委ねる。CSRF保護を有効に保つ。
 
-**Decision**
+RESTのLocationはServletUriComponentsBuilderで現在のrequestから生成する。OpenAPIのserver URLはspringdocの標準生成を使い、context pathを含む配置先を反映する。proxy配下のforwarded headerは信頼境界を確認して運用設定する。
 
-`build/` はGit管理しない。
+公開Command／Queryの実装methodを起点に、transactionとMethod Securityの両方をArchUnitで検証する。検査対象は公開APIの実装method全体とする。QueryはreadOnlyを要求する。非推奨APIのcompile検査に加え、手書きsourceのDeprecated annotationをCheckstyleで禁止し、Javadocのみのdeprecated宣言も-Xlint:dep-annと-Werrorで拒否する。
 
-主なoutput:
+**影響:** 独自filter／token endpoint／URL resolverを増やさず、認証設定の差し替え、実browserのSwagger操作、context path付きLocation、annotationの欠落を検証する。公開APIを段階的に廃止する案件ではDeprecated宣言の許可と検出方式を別途判断する。
 
-```text
-build/
-├── generated-src/
-│   └── jooq/
-└── documentation/
-    ├── database/
-    ├── api/
-    └── project/
-```
+参照: [Boot auto-configuration](https://docs.spring.io/spring-boot/reference/features/developing-auto-configuration.html)、[Spring Security CSRF](https://docs.spring.io/spring-security/reference/servlet/exploits/csrf.html)、[springdoc properties](https://springdoc.org/properties)。
 
----
+<a id="adr-022"></a>
+## ADR-022: 案件拡張を妨げない生成と検証
 
-# 8. Docker
+**状態:** Accepted
 
-## D-060 Docker directory
+**背景:** sampleの個数・名称・未実装状態を共通品質条件にすると、API・migration・Job・schemaの通常追加や案件名の変更が失敗する。生成対象のsample限定も案件の資料・SQL型の欠落を招く。
 
-**Status:** Fixed
+**決定:** 共通検査はmodule境界、認可、transaction、migration整合性、配布境界を検証する。名称・件数・登録内容は各機能の契約testで扱う。sample固有の契約はsample側のtestに置き、sample削除・変更時に一緒に更新する。特定機能を無効化するtestは、その条件をtest自身で指定する。
 
-**Decision**
+OpenAPIの出力testは生成物の取得・保存・保護を確認し、個別APIの契約は各APIのtestで検証する。公開対象はweb.rest配下を維持する。共通エラーschemaはsample非依存で登録し、共通応答の適用は未定義のstatusに限定する。system主体の権限一覧は標準GrantedAuthorityで複数featureに対応する。jOOQは複数schemaを標準生成し、PostgreSQL内部schema、public、systemを除く業務schemaを対象とする。生成先はjooq配下のschema別packageとし、単一schemaでも同じ配置を維持する。tblsは内部schemaとFlyway履歴以外のtableを対象とする。
 
-Docker関連設定は `docker/` に集約する。
+配布検査は実際のmain／test／codegen出力とJARを照合し。architecture検査のbase packageはApplicationから取得する。完全修飾名はimportによる衝突解消ができない箇所やframeworkの文字列式等に限定し、長いmethodは意味のまとまりで空行・目的を説明するコメントを入れる。
 
-```text
-docker/
-├── compose.yaml
-└── docs/
-    └── Dockerfile
-```
+**影響:** 業務機能の追加時も品質規約と案件固有の権限・公開範囲を保持する。新schema・API・migrationを追加した構成でも生成と検査が成立することを確認する。
 
----
+<a id="adr-023"></a>
+## ADR-023: 資料の正本統合と関係に集中したER図
 
-## D-061 Single Compose
+**状態:** Accepted。ADR-015の手書き補足配置・PDF入力・ER表示を本判断で置き換える。PDF生成は[ADR-024](#adr-024)で廃止。
 
-**Status:** Fixed
+**背景:** PDF専用の技術概要は既存ガイドと重複する。全カラムを含むER図は大きくなり、関係の把握を妨げる。
 
-**Decision**
+**決定:** DBの補足はdatabase.md、設計理由はADRへ集約する。projectDocumentationはarchitecture.mdを直接PDF化する。Mermaid CLI標準のMarkdown変換で本文中の図をSVGへ変換し、PandocとLuaLaTeXで組版する。PDF用の表示metadataのみdocker/docsへ置き、本文の正本はarchitecture.mdとする。出力project.pdfと既存のrelease連携を維持する。
 
-Compose fileは一つだけにする。
+ER描画はtbls標準のMermaid出力をMermaid CLIでSVGへ変換する。ER図はtblsのshowColumnTypesで関係カラムへ絞り、全カラム・制約の詳細はtable別Markdownで読む。SVGは拡大しても文字が劣化しない関係図として埋め込む。全体図と直接隣接tableの図を提供し、対象tableは実DBのschemaから取得する。大規模化時はtbls標準Viewpointsで業務単位の図を追加する。
 
-```text
-docker/compose.yaml
-```
+**影響:** ガイド内の図はその場で保守する。PDFの対象はアーキテクチャ資料とする。MarkdownとERの変換には導入済みtoolの標準機能を使用する。
 
-用途はCompose profileで切り替える。
+<a id="adr-024"></a>
+## ADR-024: PDF資料生成を標準機能から除外する
 
----
+**状態:** Accepted。ADR-015／016／023のPDF生成・配布に関する決定を置き換える。
 
-## D-062 Compose profiles
+**背景:** 設計・開発資料の配布形式はMarkdownとMermaidとする。
 
-**Status:** Fixed
+**決定:** 標準の資料生成toolchainはtblsとMermaid CLIで構成する。documentationはDB資料とOpenAPIを生成し、releaseArtifactsはJAR、DB資料ZIP、OpenAPI YAMLを収集する。MarkdownとMermaidによる設計・開発資料、tblsとMermaid CLIによるER SVG生成は維持する。
 
-**Decision**
+**影響:** 資料用imageの構成をDB資料とER描画に必要なtoolに限定する。ガイドはMarkdownとして参照し、業務機能としての帳票出力は案件の要件に応じて判断する。
 
-基本profile:
+<a id="adr-025"></a>
+## ADR-025: Gradleコマンドの責務を分離する
 
-```text
-dev
-docs
-```
+**状態:** Accepted。ADR-014／016の検証task構成を更新する。
 
----
+**背景:** 開発者がcommand名から実行範囲を判断できるように、個別実行・テスト集約・静的検査・配布物生成の責務を明確にする。
 
-## D-063 dev profile
+**決定:** unitTestは単体、integrationTestは結合、architectureTestは構造のtestを実行する。testはこれらとunit＋integrationのJaCoCo reportを集約する。checkは整形・静的解析・配布境界を検査する。buildはassemble・check・testを含む。codegen subprojectもunitTest／test／checkの役割を揃える。
 
-**Status:** Fixed
+Gradle Java pluginが提供するtestはTest型のまま集約に使い、直接実行するtest sourceを空にする。実際のJUnit実行は専用taskへ移す。実装にはGradle標準のtask型を使用する。集約task自身には対象classがなく、依存する各testの結果で成否を判定する。testReportは3種類の結果を一つのHTML reportへ集約し、testから実行する。個別class選択はunitTest等の--testsで行う。
 
-**Decision**
+releaseArtifactsはJAR・資料の生成と収集を担当する。CIとreleaseはbuildを明示的に実行する。apiDocumentation内の検査は生成資料の契約検証として資料生成と一体にし、資料出力の責務をapiDocumentationへ集約する。
 
-開発用PostgreSQLを提供する。
-
-persistent named volumeを使用する。
-
----
-
-## D-064 docs profile
-
-**Status:** Fixed
-
-**Decision**
-
-documentation生成用の:
-
-- temporary PostgreSQL
-- documentation tool container
-
-を提供する。
-
----
-
-## D-065 Documentation image
-
-**Status:** Fixed
-
-**Decision**
-
-`docker/docs/Dockerfile` に可能な限り以下を集約する。
-
-- tbls
-- Mermaid CLI
-- Pandoc
-- LuaLaTeX
-- 日本語PDF生成に必要な環境
-
-tool versionは再現性のため可能な限りpinする。
-
-font fileをrepositoryへ安易にcommitしない。
-
----
-
-## D-066 compose.docs.yaml
-
-**Status:** Superseded
-
-**Previous**
-
-documentation用の別Compose fileを持つ。
-
-**Current**
-
-D-061によりComposeは一つ。
-
----
-
-## D-067 Application Dockerfile
-
-**Status:** Rejected as baseline
-
-**Decision**
-
-application image用独自Dockerfileはbaselineでは作らない。
-
-Spring Boot Buildpacksを第一選択とする。
-
----
-
-# 9. Development Environment
-
-## D-070 Dev Container
-
-**Status:** Rejected
-
-**Decision**
-
-starter標準では使用しない。
-
----
-
-## D-071 Host requirements
-
-**Status:** Fixed
-
-**Decision**
-
-hostに必要:
-
-- JDK 25
-- Git
-- Docker
-- editor / IDE
-
-applicationはhost JVMで実行する。
-
----
-
-## D-072 Node/npm
-
-**Status:** Fixed / Verify-on-implementation
-
-**Decision**
-
-Vaadinが必要とするNode等は、可能な限りVaadin/build tooling側で管理する。
-
-global Node/npm管理をdeveloperへ要求しない方向を優先する。
-
----
-
-# 10. Gradle as Unified Command Surface
-
-## D-080 Gradle responsibility
-
-**Status:** Fixed
-
-**Decision**
-
-Gradleをdeveloper向けの単一command surfaceとする。
-
-developerは通常、以下を直接操作しなくてよいようにする。
-
-- docker compose
-- Flyway CLI
-- jOOQ CLI
-- tbls
-- Mermaid CLI
-- Pandoc
-- npm
-
----
-
-## D-081 Main developer commands
-
-**Status:** Fixed
-
-**Decision**
-
-主に覚えるcommand:
-
-```bash
-./gradlew bootRun
-./gradlew test
-./gradlew check
-./gradlew documentation
-./gradlew build
-```
-
----
-
-# 11. Project Initialization
-
-## D-090 Base package
-
-**Status:** Fixed
-
-**Decision**
-
-starterでは仮base packageを使用する。
-
-```text
-dev.template.application
-```
-
----
-
-## D-091 Replacement targets
-
-**Status:** Fixed
-
-**Decision**
-
-案件開始時に置換する。
-
-- project name
-- Gradle group
-- base package
-- application name
-
----
-
-## D-092 Initializer
-
-**Status:** Deferred
-
-**Decision**
-
-独自initializer framework/scriptは現時点では作らない。
-
-Codexによる置換で十分ならそれを使う。
-
----
-
-# 12. Architecture
-
-## D-100 Architecture style
-
-**Status:** Fixed
-
-**Decision**
-
-```text
-Feature-oriented Modular Monolith
-+
-Command / Query separation
-+
-Ports and Adapters where meaningful
-```
-
----
-
-## D-101 Starter feature
-
-**Status:** Fixed
-
-**Decision**
-
-starterではliteral name `feature` の最小sampleを置く。
-
-架空business domainを大量に作らない。
-
----
-
-## D-102 Package structure
-
-**Status:** Fixed
-
-**Decision**
-
-```text
-feature/
-├── api/
-│   ├── command/
-│   └── query/
-└── internal/
-    ├── command/
-    ├── query/
-    ├── usecase/
-    ├── domain/
-    └── infrastructure/
-```
-
-`api.event` は必要な場合だけ追加する。
-
----
-
-# 13. Spring Modulith
-
-## D-110 Module boundary
-
-**Status:** Fixed
-
-**Decision**
-
-Spring Modulithをmodule boundaryの標準機構とする。
-
----
-
-## D-111 Named Interfaces
-
-**Status:** Fixed / Verify-on-implementation
-
-**Decision**
-
-以下をNamed Interfaceとして公開する。
-
-- `api.command`
-- `api.query`
-- 必要時 `api.event`
-
-`package-info.java` + `@NamedInterface` を基本候補とする。
-
----
-
-## D-112 Cross-feature access
-
-**Status:** Fixed
-
-**Allowed**
-
-```text
-order.internal
-→ inventory.api.command
-```
-
-**Forbidden**
-
-```text
-order.internal
-→ inventory.internal
-```
-
----
-
-## D-113 Module cycles
-
-**Status:** Fixed
-
-**Decision**
-
-禁止。
-
-Spring Modulith `verify()` で検証する。
-
----
-
-## D-114 ArchUnit overlap
-
-**Status:** Fixed
-
-**Decision**
-
-Spring Modulithで表現できるruleをArchUnitへ重複実装しない。
-
----
-
-# 14. Package Visibility
-
-## D-120 Visibility
-
-**Status:** Fixed
-
-**Decision**
-
-- feature public API → `public`
-- internal implementation → package-private第一選択
-- `protected` → 継承を明確に意図した場合のみ
-
-Spring Beanだからという理由だけでpublicにしない。
-
----
-
-# 15. Command Architecture
-
-## D-130 Command flow
-
-**Status:** Fixed
-
-**Decision**
-
-```text
-feature.api.command
-        ↓
-feature.internal.command
-        ↓
-feature.internal.usecase
-        ↓
-feature.internal.domain
-        ↓
-Repository interface
-        ↑
-feature.internal.infrastructure
-```
-
----
-
-## D-131 Repository interface
-
-**Status:** Fixed
-
-**Decision**
-
-Repository interfaceは `feature.internal.usecase` に置く。
-
----
-
-## D-132 Command implementation responsibilities
-
-**Status:** Fixed
-
-**Decision**
-
-`internal.command`:
-
-- public Command API実装
-- transaction boundary
-- input adaptation
-- usecase invocation
-- Result返却
-
-business logicを大量に置かない。
-
----
-
-# 16. Query Architecture
-
-## D-140 Query flow
-
-**Status:** Fixed
-
-**Decision**
-
-```text
-feature.api.query
-        ↓
-feature.internal.query
-        ↓
-DataSource interface
-        ↑
-feature.internal.infrastructure
-        ↓
-jOOQ / PostgreSQL
-```
-
----
-
-## D-141 Query/domain separation
-
-**Status:** Fixed
-
-**Decision**
-
-Query pathはusecase/domainを通さない。
-
-read modelとSQL最適化を優先する。
-
----
-
-## D-142 DataSource interface
-
-**Status:** Fixed
-
-**Decision**
-
-interface:
-
-```text
-feature.internal.query
-```
-
-implementation:
-
-```text
-feature.internal.infrastructure
-```
-
----
-
-## D-143 Command / Query asymmetry
-
-**Status:** Fixed
-
-**Decision**
-
-Commandはdomain-oriented。
-
-QueryはSQL/read-model-oriented。
-
-意図的な非対称設計とする。
-
----
-
-# 17. Transaction
-
-## D-150 Command transaction
-
-**Status:** Fixed
-
-**Decision**
-
-`internal.command` がtransaction boundary。
-
-```java
-@Transactional
-```
-
----
-
-## D-151 Query transaction
-
-**Status:** Fixed
-
-**Decision**
-
-`internal.query`:
-
-```java
-@Transactional(readOnly = true)
-```
-
----
-
-## D-152 Usecase/domain
-
-**Status:** Fixed
-
-**Decision**
-
-transaction-awareにしない。
-
----
-
-## D-153 Cross-feature updates
-
-**Status:** Fixed
-
-**Decision**
-
-親Commandから対象featureのpublic Command APIを呼ぶ。
-
-他feature schemaへの直接:
-
-- INSERT
-- UPDATE
-- DELETE
-
-は禁止。
-
----
-
-## D-154 Propagation
-
-**Status:** Fixed
-
-**Decision**
-
-default `REQUIRED`。
-
-`REQUIRES_NEW` は明確な理由がある場合のみ。
-
----
-
-## D-155 Self invocation
-
-**Status:** Fixed
-
-**Decision**
-
-transactional self invocationへ依存しない。
-
----
-
-# 18. Result / Failure / Exception
-
-## D-160 Result model
-
-**Status:** Fixed
-
-**Decision**
-
-```text
-Result<S,F>
-├── Success<S,F>
-└── Failure<S,F>
-```
-
-variant名は `Success` / `Failure`。
-
----
-
-## D-161 Typed Failure
-
-**Status:** Fixed
-
-**Decision**
-
-Failure reasonは型付き。
-
-message stringだけでbusiness failureを表現しない。
-
----
-
-## D-162 Command return
-
-**Status:** Fixed
-
-**Decision**
-
-Commandは原則Resultを返す。
-
----
-
-## D-163 Query return
-
-**Status:** Fixed
-
-**Decision**
-
-expected failureが意味を持つ場合のみResult。
-
-単純list/searchは値を直接返してよい。
-
----
-
-## D-164 Exception classification
-
-**Status:** Fixed
-
-**Decision**
-
-- expected business outcome → Failure
-- unexpected technical failure → Exception
-- impossible internal state → Exception
-
----
-
-## D-165 Exception wrapping
-
-**Status:** Fixed
-
-**Decision**
-
-既存Spring/jOOQ exceptionが十分意味を持つ場合はwrapしない。
-
-custom exceptionは意味を追加する場合のみ。
-
----
-
-## D-166 Rollback-safe conversion
-
-**Status:** Fixed
-
-**Decision**
-
-transactional method内部でExceptionをcatchしてFailureを返し、partial commitを起こしてはならない。
-
-Exception → Failure変換はrollbackが保証される位置で行う。
-
----
-
-## D-167 Adapter handling
-
-**Status:** Fixed
-
-**Decision**
-
-- REST Failure → HTTP status / ProblemDetail
-- Vaadin Failure → user-level handling
-- Batch Failure → job semanticsに応じた結果
-- unexpected Batch Exception → Job failure / non-zero semantics
-- unexpected web Exception → common error handler + logging
-
----
-
-# 19. ID
-
-## D-170 UUID
-
-**Status:** Fixed
-
-**Decision**
-
-UUID v7。
-
----
-
-## D-171 Representation
-
-**Status:** Fixed
-
-**Decision**
-
-PostgreSQL:
-
-```text
-uuid
-```
-
-Java:
-
-```text
-java.util.UUID
-```
-
----
-
-## D-172 Domain IDs
-
-**Status:** Fixed
-
-**Decision**
-
-必要に応じてfeature-specific Value Object。
-
-Query DTOではraw UUID可。
-
----
-
-## D-173 Generation location
-
-**Status:** Fixed
-
-**Decision**
-
-application/domain側で生成する。
-
-DB auto incrementはbaselineにしない。
-
----
-
-## D-174 UUID v7 implementation
-
-**Status:** Fixed (D-591)
-
-**Decision**
-
-uuid-creatorのTimeOrderedEpochFactoryへClockを注入する。独自generatorは作らない。
-
----
-
-# 20. Date and Time
-
-## D-180 Instant
-
-**Status:** Fixed
-
-**Decision**
-
-```text
-Instant ↔ timestamptz
-```
-
----
-
-## D-181 Business date
-
-**Status:** Fixed
-
-```text
-LocalDate ↔ date
-```
-
----
-
-## D-182 Time only
-
-**Status:** Fixed
-
-```text
-LocalTime ↔ time
-```
-
----
-
-## D-183 Regional time
-
-**Status:** Fixed
-
-`ZonedDateTime + ZoneId`。
-
----
-
-## D-184 External offset time
-
-**Status:** Fixed
-
-`OffsetDateTime`。
-
-内部では必要に応じInstantへ変換。
-
----
-
-## D-185 LocalDateTime
-
-**Status:** Rejected for real instants
-
-**Decision**
-
-実時刻表現に使わない。
-
----
-
-## D-186 Clock
-
-**Status:** Fixed
-
-**Decision**
-
-current timeはinjectable `Clock`。
-
-production:
-
-```java
-Clock.systemUTC()
-```
-
-test:
-
-```java
-Clock.fixed(...)
-```
-
-OS default timezoneへ依存しない。
-
----
-
-# 21. Database Ownership
-
-## D-190 Schema per feature
-
-**Status:** Fixed
-
-**Decision**
-
-featureごとにPostgreSQL schemaを所有する。
-
----
-
-## D-191 Cross-feature writes
-
-**Status:** Fixed
-
-**Decision**
-
-他feature schemaへの直接writeは禁止。
-
----
-
-## D-192 Cross-feature reads
-
-**Status:** Fixed
-
-**Decision**
-
-cross-feature JOINは禁止しない。
-
-DB JOINが適切ならJava側へ無理に分解しない。
-
----
-
-## D-193 Cross-feature query architecture
-
-**Status:** Deferred
-
-**Candidates**
-
-- multi-schema JOIN
-- View
-- Materialized View
-- projection table
-- dedicated cross-feature query module
-
-必要になるまで命名・構造を固定しない。
-
----
-
-## D-194 Technical schema
-
-**Status:** Deferred / Project-specific
-
-**Decision**
-
-必要時に `system` 等を使用可能。
-
-用途:
-
-- Spring Batch metadata
-- Spring Modulith event publication metadata
-
-必須作成ではない。
-
----
-
-# 22. Database Naming and Types
-
-## D-200 Naming
-
-**Status:** Fixed
-
-snake_case。
-
----
-
-## D-201 Constraints
-
-**Status:** Fixed
-
-```text
-PK    pk_<table>
-FK    fk_<table>_<referenced_table>
-UK    uk_<table>_<column...>
-Index ix_<table>_<column...>
-Check ck_<table>_<purpose>
-```
-
----
-
-## D-202 ID columns
-
-**Status:** Fixed
-
-own PK:
-
-```text
-id
-```
-
-reference:
-
-```text
-<target>_id
-```
-
----
-
-## D-203 Nullability
-
-**Status:** Fixed
-
-default `NOT NULL`。
-
-absence自体に意味がある場合のみnullable。
-
----
-
-## D-204 Numeric
-
-**Status:** Fixed
-
-```text
-numeric(p,s) ↔ BigDecimal
-```
-
-moneyへfloat/doubleを使用しない。
-
----
-
-## D-205 Strings
-
-**Status:** Fixed
-
-- bounded semantic string → `varchar(n)`
-- unbounded description → `text`
-
-ValidationとDB constraintを整合。
-
----
-
-## D-206 Boolean
-
-**Status:** Fixed
-
-本当に二値だけの概念に使用。
-
-状態が増え得るものを安易にboolean化しない。
-
----
-
-# 23. Audit / Delete
-
-## D-210 Audit names
-
-**Status:** Fixed
-
-必要なtableのみ:
-
-```text
-created_at
-updated_at
-created_by
-updated_by
-```
-
----
-
-## D-211 Audit assignment
-
-**Status:** Project-specific
-
-具体的な付与方式は案件要件で決定。
-
----
-
-## D-212 Delete default
-
-**Status:** Fixed
-
-physical delete。
-
----
-
-## D-213 Soft delete
-
-**Status:** Rejected as baseline
-
-以下を自動追加しない。
-
-```text
-deleted
-deleted_at
-is_deleted
-```
-
-履歴要件は履歴modelとして設計する。
-
----
-
-# 24. Foreign Keys
-
-## D-220 Same-feature FK
-
-**Status:** Fixed
-
-DB constraintを積極利用。
-
----
-
-## D-221 Cross-feature FK
-
-**Status:** Project-specific
-
-module autonomyとdata integrityを比較して決定。
-
-UUID referenceのみも許容。
-
----
-
-# 25. Flyway
-
-## D-230 Source of truth
-
-**Status:** Fixed
-
-schema変更履歴はFlyway migration。
-
----
-
-## D-231 Applied migrations
-
-**Status:** Fixed
-
-適用済migrationを安易に変更しない。
-
-新しい変更は新migration。
-
----
-
-## D-232 Development migration
-
-**Status:** Fixed / Verify-on-implementation
-
-```text
-./gradlew bootRun
-→ dev PostgreSQL
-→ Flyway
-→ application start
-```
-
-Spring Boot Docker Compose integrationを利用する方向。
-
----
-
-## D-233 Production migration
-
-**Status:** Fixed
-
-原則application startup時。
-
-案件の運用要件によってmigration先行実行も許容。
-
----
-
-## D-234 Migration layout
-
-**Status:** Fixed (Phase 2; D-581)
-
-`db/migration/<feature>/` 配下をFlyway標準の再帰scanで読み込む。versionはapplication全体で一意にする。
-
-独自migration loaderは作らない。
-
----
-
-## D-235 Flyway history table
-
-**Status:** Fixed (Phase 2; D-581)
-
-**Decision**
-
-`public.flyway_schema_history` をapplication全体の共通履歴とする。
-
----
-
-# 26. Master / Sample Data
-
-## D-240 Minimal starter data
-
-**Status:** Fixed
-
-起動・動作確認に必要な最小sample/system dataのみFlywayで登録可。
-
----
-
-## D-241 Generic master import
-
-**Status:** Rejected
-
-CSV + Spring Batch等によるgeneric master importをbaseline化しない。
-
----
-
-## D-242 Business master
-
-**Status:** Project-specific
-
-商品・顧客・倉庫等は案件固有。
-
----
-
-# 27. Database Environments
-
-## D-250 Development DB
-
-**Status:** Fixed
-
-Docker Compose PostgreSQL。
-
-persistent named volume。
-
----
-
-## D-251 Test DB
-
-**Status:** Fixed
-
-Testcontainers PostgreSQL。
-
-isolated / ephemeral。
-
----
-
-## D-252 jOOQ codegen DB
-
-**Status:** Fixed
-
-temporary PostgreSQL。
-
-```text
-empty DB
-→ Flyway
-→ jOOQ code generation
-→ destroy
-```
-
----
-
-## D-253 Documentation DB
-
-**Status:** Fixed
-
-temporary PostgreSQL。
-
-```text
-empty DB
-→ Flyway
-→ tbls
-→ destroy
-```
-
----
-
-## D-254 Four DB purposes
-
-**Status:** Fixed
-
-明確に分離する。
-
-1. development
-2. test
-3. jOOQ code generation
-4. documentation
-
----
-
-# 28. jOOQ
-
-## D-260 Generated source
-
-**Status:** Fixed
-
-```text
-build/generated-src/jooq/
-```
-
----
-
-## D-261 Generated packages
-
-**Status:** Fixed
-
-schema単位で明確に分離されたgenerated package hierarchyとする。
-
-具体package名は実装時にbase packageとの整合を見て決定。
-
----
-
-## D-262 Git
-
-**Status:** Fixed
-
-generated sourceはcommitしない。
-
----
-
-## D-263 Usage boundary
-
-**Status:** Fixed
-
-jOOQ generated codeは原則 `internal.infrastructure` からのみ参照。
-
-ArchUnitで検証可能。
-
----
-
-## D-264 Reproducibility
-
-**Status:** Fixed
-
-development DBをcodegen sourceにしない。
-
----
-
-## D-265 Incrementality
-
-**Status:** Fixed
-
-Gradle inputs / outputsを設定し、migrationに変更がない場合の不要なcodegenを避ける。
-
----
-
-# 29. Database Documentation
-
-## D-270 Source
-
-**Status:** Fixed
-
-migrated PostgreSQL schemaをsourceとする。
-
-Flyway SQL自体を独自parseしない。
-
----
-
-## D-271 PostgreSQL comments
-
-**Status:** Fixed
-
-```sql
-COMMENT ON TABLE ...
-COMMENT ON COLUMN ...
-```
-
-をdescription sourceとして利用。
-
----
-
-## D-272 tbls
-
-**Status:** Fixed
-
-`.tbls.yml`。
-
----
-
-## D-273 ER format
-
-**Status:** Fixed
-
-SVG優先。
-
----
-
-## D-274 Manual notes
-
-**Status:** Fixed
-
-```text
-docs/database/notes/
-```
-
----
-
-## D-275 Generated review docs
-
-**Status:** Project-specific
-
-```text
-docs/database/generated/
-```
-
-をschema変更reviewのためGit管理する案を許容する。
-
-Git管理を必須とはまだ固定しない。
-
----
-
-## D-276 Build output
-
-**Status:** Fixed
-
-```text
-build/documentation/database/
-```
-
-はbuild artifact。
-
----
-
-# 30. REST
-
-## D-280 REST location
-
-**Status:** Fixed
-
-```text
-web.rest
-```
-
----
-
-## D-281 Dependency boundary
-
-**Status:** Fixed
-
-REST Controller → feature public API。
-
-feature internalへ直接依存しない。
-
----
-
-## D-282 HTTP DTO
-
-**Status:** Fixed
-
-REST-specific request/response DTOは `web.rest` に置ける。
-
----
-
-## D-283 URLs
-
-**Status:** Fixed
-
-noun-oriented / plural。
-
----
-
-## D-284 Non-CRUD actions
-
-**Status:** Fixed
-
-必要に応じaction subresourceを使用。
-
----
-
-## D-285 HTTP status
-
-**Status:** Fixed
-
-基本:
-
-- 200
-- 201
-- 204
-- 400
-- 401
-- 403
-- 404
-- 409
-- 422
-- 500
-
----
-
-## D-286 Errors
-
-**Status:** Fixed
-
-Spring `ProblemDetail`。
-
----
-
-## D-287 API response wrapper
-
-**Status:** Rejected
-
-global `ApiResponse<T>` 等を作らない。
-
----
-
-## D-288 JSON
-
-**Status:** Fixed
-
-Spring/Jackson defaultsを基本。
-
-- camelCase
-- ISO-8601
-- unnecessary serializerを避ける
-
----
-
-# 31. API Versioning
-
-## D-290 Version form
-
-**Status:** Fixed
-
-```text
-/api/v1
-/api/v2
-```
-
-major version。
-
----
-
-## D-291 Breaking changes
-
-**Status:** Fixed
-
-breaking changeだけmajor bump。
-
----
-
-## D-292 Future packages
-
-**Status:** Rejected
-
-実在しないv2 packageを先行作成しない。
-
----
-
-## D-293 Spring standard versioning
-
-**Status:** Fixed / Verify-on-implementation
-
-Spring MVC標準API versioningを優先する。
-
-custom resolverを作らない。
-
----
-
-## D-294 Deprecation / Sunset
-
-**Status:** Fixed / Verify-on-implementation
-
-API廃止予告は可能な限りSpring / HTTP標準のdeprecation / sunset mechanismを優先する。
-
-独自仕組みを先に作らない。
-
----
-
-# 32. Pagination / Sort
-
-## D-300 Ownership
-
-**Status:** Fixed
-
-pagination/sortはQuery API側のtyped conceptとして扱う。
-
-REST/Vaadinはadapter。
-
----
-
-## D-301 Offset/limit
-
-**Status:** Project-specific
-
-小〜中規模業務システムでは第一候補。
-
-強制はしない。
-
----
-
-## D-302 Slice/Page
-
-**Status:** Project-specific
-
-total不要 → Slice的model。
-
-total必要 → Page。
-
----
-
-## D-303 Keyset
-
-**Status:** Project-specific
-
-deep pagination / large datasetでjOOQ seek/keysetを検討。
-
----
-
-## D-304 Typed sort
-
-**Status:** Fixed
-
-任意文字列をDB columnへ直結しない。
-
-query-specific enum等へ変換。
-
----
-
-## D-305 Spring Data Pageable
-
-**Status:** Rejected as baseline
-
-paginationだけのためにSpring Dataを追加しない。
-
----
-
-# 33. Vaadin
-
-## D-310 UI location
-
-**Status:** Fixed
-
-```text
-web.ui
-```
-
----
-
-## D-311 Dependency boundary
-
-**Status:** Fixed
-
-Vaadin View → feature public API。
-
----
-
-## D-312 Framework types
-
-**Status:** Fixed
-
-Vaadin-specific typeをdomain/usecaseへ渡さない。
-
----
-
-# 34. Security
-
-## D-320 Spring Security
-
-**Status:** Fixed
-
-baselineに含める。
-
----
-
-## D-321 Authentication
-
-**Status:** Project-specific
-
-具体方式は固定しない。
-
----
-
-## D-322 Method Security
-
-**Status:** Fixed
-
-business authorizationの中心。
-
-`@EnableMethodSecurity`。
-
----
-
-## D-323 Authorization boundary
-
-**Status:** Fixed
-
-主に:
-
-- internal.command
-- internal.query
-
-で認可。
-
----
-
-## D-324 Web route security
-
-**Status:** Fixed
-
-粗いentry restriction。
-
-Method Securityを本認可とする。
-
----
-
-## D-325 Authority
-
-**Status:** Fixed
-
-RoleよりAuthority中心。
-
-例:
-
-```text
-inventory:read
-inventory:write
-```
-
----
-
-## D-326 Role
-
-**Status:** Fixed
-
-Authorityの集合として扱う。
-
----
-
-## D-327 Authority constants
-
-**Status:** Fixed
-
-stringを各所へ散在させない。
-
-feature単位の定義を許容。
-
-全featureを巨大global classへ集約しない。
-
----
-
-## D-328 SecurityContext boundary
-
-**Status:** Fixed
-
-domain/usecaseから:
-
-- SecurityContextHolder
-- Authentication
-- GrantedAuthority
-
-を直接使わない。
-
----
-
-## D-329 Current user
-
-**Status:** Fixed
-
-security layerでbusiness/application-friendly typeへ変換して渡す。
-
----
-
-## D-330 Batch/Scheduler actor
-
-**Status:** Fixed
-
-fake Authenticationを作らない。
-
-必要ならbusiness Actor型を設計。
-
----
-
-## D-331 REST security status
-
-**Status:** Fixed
-
-- unauthenticated → 401
-- unauthorized → 403
-
----
-
-## D-332 Actuator security
-
-**Status:** Fixed
-
-公開endpointを最小限にする。
-
-healthは必要に応じ匿名可。
-
----
-
-# 35. External HTTP
-
-## D-340 Client priority
-
-**Status:** Fixed
-
-1. HTTP Service Client
-2. RestClient
-3. WebClient — reactive/streamingが本当に必要な場合
-
-RestTemplateは新規採用しない。
-
----
-
-## D-341 HTTP Service Groups
-
-**Status:** Fixed / Verify-on-implementation
-
-Spring Boot標準group configurationを利用できる場合は優先。
-
----
-
-## D-342 External DTOs
-
-**Status:** Fixed
-
-`internal.infrastructure` に閉じる。
-
----
-
-## D-343 Business Port
-
-**Status:** Fixed
-
-business側は外部HTTP APIそのものではなく、自身が必要とするPortへ依存。
-
----
-
-## D-344 Timeout
-
-**Status:** Fixed
-
-明示する。
-
-- connect timeout
-- read timeout
-
----
-
-## D-345 Retry
-
-**Status:** Fixed
-
-default retryなし。
-
----
-
-## D-346 Mutation retries
-
-**Status:** Fixed
-
-POST / PUT / PATCHの機械的retryは禁止。
-
-idempotency保証時のみ検討。
-
----
-
-## D-347 Error mapping
-
-**Status:** Fixed
-
-expected business response → Failure変換可。
-
-network / timeout / 5xx / unexpected protocol → Exception。
-
----
-
-## D-348 Authentication
-
-**Status:** Fixed
-
-API key / token等はclient configuration側。
-
-business layerへcredentialを持ち込まない。
-
----
-
-## D-349 Correlation propagation
-
-**Status:** Fixed
-
-必要に応じMDC correlation IDをoutgoing HTTPへ伝播。
-
-header名は案件仕様に応じる。
-
----
-
-## D-350 External HTTP logging
-
-**Status:** Fixed
-
-横断的に必要な場合、以下を記録対象とする。
-
-- target service
-- operation
-- HTTP status
-- duration
-- correlation ID
-- exception
-
-request / response body全文を標準logにしない。
-
----
-
-# 36. Logging
-
-## D-360 Business logger calls
-
-**Status:** Fixed
-
-通常のbusiness codeへlogger callを書かない。
-
----
-
-## D-361 Mechanism
-
-**Status:** Fixed
-
-AOP / filter / interceptor中心。
-
----
-
-## D-362 Command log level
-
-**Status:** Fixed
-
-start/end → INFO。
-
----
-
-## D-363 Query log level
-
-**Status:** Fixed
-
-start/end → DEBUG。
-
----
-
-## D-364 Failure level
-
-**Status:** Fixed
-
-expected Failure → INFO基本。
-
-意味上warningならWARN。
-
----
-
-## D-365 Exception level
-
-**Status:** Fixed
-
-unexpected Exception → ERROR + stack trace。
-
----
-
-## D-366 Sensitive information
-
-**Status:** Fixed
-
-以下をlogしない。
-
-- password
-- token
-- secret
-- credential
-- unnecessary PII
-
----
-
-## D-367 Payload dump
-
-**Status:** Rejected
-
-request/response objectの全文dumpを標準にしない。
-
----
-
-## D-368 Correlation ID
-
-**Status:** Fixed
-
-MDCで管理。
-
----
-
-## D-369 Pointcuts
-
-**Status:** Fixed
-
-package-based pointcutを第一候補。
-
-不要なmarker annotation frameworkを先に作らない。
-
----
-
-## D-370 Direct logger exceptions
-
-**Status:** Fixed
-
-AOPでは意味を表現できないtechnical eventのみ例外的に直接logger可。
-
----
-
-# 37. Configuration
-
-## D-380 Environment-dependent values
-
-**Status:** Fixed
-
-environment variableから注入。
-
----
-
-## D-381 application.yml
-
-**Status:** Fixed
-
-以下を置いてよい。
-
-- stable configuration
-- environment variable mapping
-- safe default
-
-secretは書かない。
-
----
-
-## D-382 Secrets
-
-**Status:** Fixed
-
-repositoryへcommitしない。
-
-JAR / Docker双方でenvironment-based configuration modelを共通利用する。
-
----
-
-## D-383 ConfigurationProperties
-
-**Status:** Fixed
-
-```java
-@ConfigurationProperties
-@Validated
-record ...
-```
-
-を第一選択。
-
----
-
-## D-384 @Value
-
-**Status:** Fixed
-
-scattered `@Value` を避ける。
-
----
-
-## D-385 Typed config
-
-**Status:** Fixed
-
-可能な限り:
-
-- Duration
-- URI
-- numeric type
-- boolean
-
-等を使用。
-
----
-
-## D-386 Startup validation
-
-**Status:** Fixed
-
-必須設定不足はapplication startup failure。
-
-configuration validationについてtestも用意する。
-
----
-
-## D-387 Defaults
-
-**Status:** Fixed
-
-安全なdefaultのみ。
-
----
-
-## D-388 Environment profile files
-
-**Status:** Fixed
-
-environment別YAMLを大量複製しない。
-
----
-
-# 38. HikariCP
-
-## D-390 Pool
-
-**Status:** Fixed
-
-Spring Boot標準HikariCP。
-
----
-
-## D-391 Tuning
-
-**Status:** Project-specific
-
-starterでは細かくtuneしない。
-
----
-
-## D-392 Observability
-
-**Status:** Fixed
-
-Actuator/Micrometerでpool状態を観測可能にする。
-
----
-
-# 39. File I/O
-
-## D-400 Boundary
-
-**Status:** Fixed
-
-upload/downloadはweb adapter concern。
-
----
-
-## D-401 Framework types
-
-**Status:** Fixed
-
-business APIへ以下を不用意に漏らさない。
-
-- MultipartFile
-- HttpServletResponse
-- Vaadin StreamResource
-- Path
-- raw InputStream
-
-technical I/O representationをbusiness contractにしない。
-
----
-
-## D-402 Storage port
-
-**Status:** Fixed
-
-persistent storageはPort経由。
-
-implementationはinfrastructure。
-
----
-
-## D-403 Storage implementation
-
-**Status:** Project-specific
-
-例:
-
-- local filesystem
-- S3-compatible storage
-
----
-
-## D-404 Filename safety
-
-**Status:** Fixed
-
-user filenameを保存pathとして信用しない。
-
-内部名はUUID等で生成。
-
----
-
-## D-405 File validation
-
-**Status:** Fixed
-
-必要に応じ:
-
-- size
-- MIME type
-- extension
-- content
-
-を検証。
-
----
-
-## D-406 Temporary files
-
-**Status:** Fixed
-
-適切なtemp領域を使用。
-
-処理後削除。
-
----
-
-## D-407 Large files
-
-**Status:** Fixed
-
-不要に全内容をmemoryへ展開しない。
-
----
-
-## D-408 CSV
-
-**Status:** Fixed
-
-baseline:
-
-- UTF-8
-- comma separated
-- quotingを正しく扱う
-- LF / CRLFの双方を受容
-
-独自CSV parserを作らない。
-
-必要ならApache Commons CSV等を利用。
-
----
-
-## D-409 Excel / business PDF
-
-**Status:** Project-specific
-
-baselineには含めない。
-
----
-
-# 40. Cache
-
-## D-410 Baseline
-
-**Status:** Fixed
-
-cacheなし。
-
----
-
-## D-411 Dependencies
-
-**Status:** Rejected as baseline
-
-最初から:
-
-- Spring Cache
-- Caffeine
-- Redis
-
-を追加しない。
-
----
-
-## D-412 Introduction
-
-**Status:** Project-specific
-
-performance measurement後に必要箇所へ導入。
-
----
-
-# 41. Events / Async
-
-## D-420 Default feature communication
-
-**Status:** Fixed
-
-同期public Command / Query API。
-
----
-
-## D-421 Spring Modulith Event
-
-**Status:** Fixed
-
-時間的に分離可能な副作用に使用可能。
-
----
-
-## D-422 Event overuse
-
-**Status:** Rejected
-
-疎結合という理由だけで全処理をevent化しない。
-
----
-
-## D-423 api.event
-
-**Status:** Fixed
-
-必要なfeatureのみ持つ。
-
----
-
-## D-424 Async
-
-**Status:** Fixed
-
-defaultは同期。
-
-必要性がある処理だけ非同期化。
-
----
-
-## D-425 Async considerations
-
-**Status:** Fixed
-
-- transaction
-- failure handling
-- retry
-- ordering
-- duplicate execution
-- recovery
-
-を検討。
-
----
-
-# 42. Mail / Notification
-
-## D-430 Mail baseline
-
-**Status:** Rejected
-
-starterにMail dependencyを入れない。
-
----
-
-## D-431 Notification architecture
-
-**Status:** Project-specific
-
-必要時にnotification feature/module + Port。
-
-business featureからtransport implementationを直接呼ばない。
-
----
-
-# 43. Batch / Scheduling
-
-## D-440 Batch
-
-**Status:** Fixed
-
-top-level adapter:
-
-```text
-batch
-```
-
----
-
-## D-441 Batch dependency
-
-**Status:** Fixed
-
-Batch → feature public API。
-
----
-
-## D-442 Batch use cases
-
-**Status:** Fixed
-
-以下が必要な処理でSpring Batch。
-
-- restartability
-- step
-- chunk
-- job history
-
----
-
-## D-443 Sample jobs
-
-**Status:** Rejected
-
-意味のないsample Jobを作らない。
-
----
-
-## D-444 Job auto-run
-
-**Status:** Rejected
-
-web application startup時に全Jobを自動実行しない。
-
----
-
-## D-445 Batch result semantics
-
-**Status:** Fixed
-
-- unexpected Exception → Job failure
-- expected Failure → job use caseの意味に応じて終了状態へmapping
-
----
-
-## D-446 Scheduling
-
-**Status:** Fixed
-
-top-level:
-
-```text
-scheduling
-```
-
-単純定期処理は `@Scheduled`。
-
----
-
-## D-447 Quartz
-
-**Status:** Rejected as baseline
-
----
-
-# 44. Testing
-
-## D-450 Unit tests
-
-**Status:** Fixed
-
-対象:
-
-- domain
-- usecase
-
-Spring contextなし。
-
-JUnit + AssertJ。
-
----
-
-## D-451 Integration tests
-
-**Status:** Fixed
-
-PostgreSQL Testcontainers。
-
-対象:
-
-- Repository
-- DataSource
-- Flyway
-- jOOQ
-- constraints
-- sorting
-- pagination
-- joins
-- boundary cases
-
----
-
-## D-452 H2
-
-**Status:** Rejected
-
-PostgreSQL代替integration DBに使わない。
-
----
-
-## D-453 Architecture tests
-
-**Status:** Fixed
-
-Spring Modulith + ArchUnit。
-
----
-
-## D-454 ArchUnit scope
-
-**Status:** Fixed
-
-Modulithで表現しづらいtechnical rulesのみ。
-
-例:
-
-- web → jOOQ禁止
-- domain → Vaadin禁止
-- domain → Spring MVC禁止
-- security → feature.internal禁止
-- generated jOOQ → infrastructure以外禁止
-
----
-
-## D-455 REST tests
-
-**Status:** Fixed
-
-必要に応じMockMvc。
-
----
-
-## D-456 Vaadin E2E
-
-**Status:** Fixed
-
-重要flowのみ。
-
----
-
-## D-457 SpringBootTest
-
-**Status:** Fixed
-
-wiring/context/security等の少数smoke test。
-
----
-
-## D-458 Source sets
-
-**Status:** Fixed
-
-```text
-src/test/java
-src/integrationTest/java
-src/architectureTest/java
-```
-
----
-
-## D-459 Task names
-
-**Status:** Fixed
-
-```text
-test
-integrationTest
-architectureTest
-```
-
----
-
-## D-460 Test class names
-
-**Status:** Fixed
-
-```text
-FooTest
-FooIntegrationTest
-ArchitectureTest
-```
-
----
-
-# 45. Code Quality
-
-## D-470 Spotless
-
-**Status:** Fixed
-
-formatting標準。
-
----
-
-## D-471 Checkstyle
-
-**Status:** Fixed
-
-意味のあるcoding conventionsを守る。
-
-Javaを不自然にするほど細かくしない。
-
----
-
-## D-472 SpotBugs
-
-**Status:** Fixed
-
-static bug analysis。
-
----
-
-## D-473 JaCoCo
-
-**Status:** Fixed
-
-coverage visibility。
-
-coverage percentageを目的化しない。
-
----
-
-## D-474 Quality gate
-
-**Status:** Fixed
-
-```bash
-./gradlew check
-```
-
----
-
-## D-475 check content
-
-**Status:** Fixed
-
-少なくとも:
-
-- Spotless check
-- Checkstyle
-- SpotBugs
-- unit tests
-- integration tests
-- architecture tests
-- relevant JaCoCo tasks
-
----
-
-# 46. Documentation
-
-## D-480 Markdown
-
-**Status:** Fixed
-
-human-authored documentationのsource of truth。
-
----
-
-## D-481 Mermaid
-
-**Status:** Fixed
-
-diagram標準。
-
----
-
-## D-482 Mermaid conversion
-
-**Status:** Fixed
-
-Pandocへfenced Mermaidを直接任せず、SVG等へ事前render。
-
----
-
-## D-483 PDF
-
-**Status:** Fixed
-
-Pandoc + LuaLaTeX。
-
-日本語を再現可能に生成。
-
----
-
-## D-484 Project source
-
-**Status:** Fixed
-
-```text
-docs/project/
-```
-
----
-
-## D-485 Project output
-
-**Status:** Fixed
-
-```text
-build/documentation/project/
-```
-
----
-
-## D-486 Documentation aggregate
-
-**Status:** Fixed
-
-```text
-documentation
-├── databaseDocumentation
-├── apiDocumentation
-└── projectDocumentation
-```
-
----
-
-## D-487 Normal build
-
-**Status:** Fixed
-
-heavy documentation generationを通常 `build` に含めない。
-
----
-
-# 47. OpenAPI
-
-## D-490 Tool
-
-**Status:** Fixed
-
-springdoc-openapi。
-
----
-
-## D-491 Annotation policy
-
-**Status:** Fixed
-
-Controller / Validation metadataを活用しannotation soupを避ける。
-
----
-
-## D-492 Swagger UI
-
-**Status:** Fixed
-
-dev/localで利用可。
-
-productionでは無条件公開しない。
-
----
-
-## D-493 Versioned output
-
-**Status:** Fixed
-
-例:
-
-```text
-build/documentation/api/v1/openapi.yaml
-```
-
----
-
-## D-494 Spring REST Docs
-
-**Status:** Rejected as baseline
-
----
-
-# 48. Actuator / Observability
-
-## D-500 Baseline
-
-**Status:** Fixed
-
-- health
-- info
-- metrics
-
----
-
-## D-501 Micrometer
-
-**Status:** Fixed
-
-Boot標準を利用。
-
----
-
-## D-502 Prometheus
-
-**Status:** Project-specific
-
----
-
-## D-503 OpenTelemetry
-
-**Status:** Project-specific
-
----
-
-## D-504 Structured JSON logging
-
-**Status:** Project-specific
-
----
-
-# 49. Graceful Shutdown
-
-## D-510 Graceful shutdown
-
-**Status:** Fixed
-
-Spring Boot標準を使用。
-
-独自shutdown frameworkを作らない。
-
----
-
-# 50. Release and Deployment
-
-## D-520 Canonical artifact
-
-**Status:** Fixed
-
-Spring Boot executable JAR。
-
-```bash
-./gradlew bootJar
-```
-
----
-
-## D-521 OCI image
-
-**Status:** Fixed
-
-```bash
-./gradlew bootBuildImage
-```
-
----
-
-## D-522 Application version
-
-**Status:** Fixed
-
-Gradle project versionを正本とする。
-
-SemVerを基本とする。
-
----
-
-## D-523 API vs app version
-
-**Status:** Fixed
-
-別物として扱う。
-
----
-
-## D-524 Git tag
-
-**Status:** Fixed
-
-例:
-
-```text
-v1.0.0
-```
-
----
-
-## D-525 Deployment platform
-
-**Status:** Project-specific
-
-候補:
-
-- JAR + systemd
-- Docker
-- ECS
-- Kubernetes
-- etc.
-
----
-
-## D-526 Production Compose
-
-**Status:** Rejected as baseline
-
----
-
-# 51. GitHub Actions
-
-## D-530 Build logic
-
-**Status:** Fixed
-
-Gradleをbuild truthとする。
-
-Actionsへbuild logicを複製しない。
-
----
-
-## D-531 CI
-
-**Status:** Fixed
-
-基本:
-
-```text
-checkout
-→ JDK 25
-→ Gradle
-→ ./gradlew check
-```
-
----
-
-## D-532 Release workflow
-
-**Status:** Fixed
-
-Git tagをtriggerとしてrelease可能にする。
-
----
-
-## D-533 Release assets
-
-**Status:** Fixed
-
-必要に応じ:
-
-- executable JAR
-- OpenAPI
-- DB documentation
-- project documentation PDF
-
-をGitHub Releaseへ添付。
-
----
-
-# 52. README / Docs Roles
-
-## D-540 README
-
-**Status:** Fixed
-
-利用者向け入口。
-
-含める:
-
-- purpose
-- prerequisites
-- initialization
-- project structure概要
-- main commands
-- bootRun
-- check
-- documentation
-- build / release概要
-
----
-
-## D-541 architecture.md
-
-**Status:** Fixed
-
-architecture詳細。
-
----
-
-## D-542 database.md
-
-**Status:** Fixed
-
-database / Flyway / jOOQ / DB documentation詳細。
-
----
-
-## D-543 implementation-plan.md
-
-**Status:** Fixed
-
-phase単位の実装順序。
-
----
-
-# 53. Codex / Ponytail
-
-## D-550 Codex read order
-
-**Status:** Fixed
-
-変更前に:
-
-1. `AGENTS.md`
-2. relevant docs
-3. current implementation
-
-を読む。
-
----
-
-## D-551 Phase discipline
-
-**Status:** Fixed
-
-指定されたimplementation phaseだけを実装。
-
-先のphaseへ勝手に進まない。
-
----
-
-## D-552 Validation workflow
-
-**Status:** Fixed
-
-変更後:
-
-1. formatter
-2. relevant tests
-3. static analysis
-4. 必要なら `./gradlew check`
-5. failure修正
-6. changed files確認
-7. result summary
-
----
-
-## D-553 Ponytail role
-
-**Status:** Fixed
-
-general YAGNI / simplification review。
-
-project-specific ruleのsource of truthではない。
-
----
-
-## D-554 Ponytail review
-
-**Status:** Fixed
-
-削減対象:
-
-- speculative abstraction
-- unused extension point
-- redundant wrapper
-- unnecessary DTO
-- unused configuration
-- needless indirection
-
-削減禁止:
-
-- type safety
-- security
-- transaction safety
-- data integrity
-- module boundary
-- meaningful tests
-- necessary validation
-
----
-
-# 54. Verify at Implementation Time
-
-## D-560 Version-sensitive items
-
-**Status:** Fixed
-
-以下は実装時に公式documentationを確認する。
-
-- Spring Boot / Spring Framework APIs
-- Spring MVC API Versioning
-- HTTP Service Client / Service Groups
-- Vaadin 25 Node/build management
-- Java 25 UUID v7 support
-- Flyway migration locations
-- jOOQ Gradle integration
-- springdoc + Spring Boot 4
-- Spring Modulith event publication metadata
-- Spring Batch metadata
-- Spring Boot Docker Compose integration
-- `bootBuildImage`
-
-古いblog記事をblind copyしない。
-
----
-
-# 55. Explicit Rejections / Superseded Decisions
-
-| ID    | Decision                                          | Status               |
-| ----- | ------------------------------------------------- | -------------------- |
-| R-001 | Dev Container baseline                            | Rejected             |
-| R-002 | JPA / Hibernate baseline                          | Rejected             |
-| R-003 | Redis baseline                                    | Rejected             |
-| R-004 | Cache baseline                                    | Rejected             |
-| R-005 | Generic master-data import batch                  | Rejected             |
-| R-006 | Generic notification framework                    | Rejected             |
-| R-007 | Multiple Compose files                            | Rejected             |
-| R-008 | `compose.docs.yaml`                               | Superseded           |
-| R-009 | Application Dockerfile baseline                   | Rejected             |
-| R-010 | RestTemplate                                      | Rejected             |
-| R-011 | Spring Data Pageable dependency                   | Rejected as baseline |
-| R-012 | H2 for PostgreSQL integration tests               | Rejected             |
-| R-013 | Soft delete default                               | Rejected             |
-| R-014 | Everything as events                              | Rejected             |
-| R-015 | Async by default                                  | Rejected             |
-| R-016 | Logger in every business class                    | Rejected             |
-| R-017 | Global custom API response envelope               | Rejected             |
-| R-018 | Giant custom exception hierarchy                  | Rejected             |
-| R-019 | Heavy docs generation as normal build requirement | Rejected             |
-| R-020 | Production Compose as starter standard            | Rejected             |
-
----
-
-# 56. Deferred / Project-specific Decisions
-
-以下は意図的に固定しない。
-
-- authentication mechanism
-- cross-feature query module structure
-- pagination方式
-- total countの有無
-- audit actor assignment implementation
-- cross-feature FK
-- cache implementation
-- retry policy per operation
-- file storage implementation
-- mail / notification transport
-- Hikari pool sizing
-- observability backend
-- Spring Batch metadata schema placement
-- Spring Modulith metadata schema placement
-- production deployment platform
-- exact project initialization automation
-- `docs/database/generated/` のGit管理有無
-
----
-
-# 57. Phase 1 Implementation Decisions
-
-## D-570 Initial build versions
-
-**Status:** Fixed
-
-2026-09-13のPhase 1では以下を採用する。以後のversion更新はVersion Catalog / Wrapperを正本とし、この表は初回選定の記録とする。
-
-| Component | Initial version | Official source |
-| --- | --- | --- |
-| Java Toolchain | 25 | [Gradle compatibility](https://docs.gradle.org/current/userguide/compatibility.html) |
-| Gradle Wrapper | 9.7.0 | [Release notes](https://docs.gradle.org/9.7.0/release-notes.html) |
-| Spring Boot plugin / BOM | 4.1.1 | [System requirements](https://docs.spring.io/spring-boot/system-requirements.html) |
-| Spring Modulith BOM | 2.1.1 | [Reference](https://docs.spring.io/spring-modulith/reference/) |
-| Spotless plugin | 8.10.2 | [Plugin Portal](https://plugins.gradle.org/plugin/com.diffplug.spotless/8.10.2) |
-| google-java-format | 1.36.1 | [Release](https://github.com/google/google-java-format/releases/tag/v1.36.1) |
-| SpotBugs plugin | 6.5.11 | [Plugin Portal](https://plugins.gradle.org/plugin/com.github.spotbugs/6.5.11) |
-| SpotBugs engine | 4.10.4 | [Release](https://github.com/spotbugs/spotbugs/releases/tag/4.10.4) |
-| Checkstyle | 14.1.0 | [Release](https://github.com/checkstyle/checkstyle/releases/tag/checkstyle-14.1.0) |
-| JaCoCo | 0.8.14 | [Release](https://github.com/jacoco/jacoco/releases/tag/v0.8.14) |
-
-Java 25のGradle実行には9.1.0以降が必要。Boot 4.1.1はJava 25とGradle 9.xをサポートする。Wrapperには公式配布物のSHA-256を設定する。
-
-## D-571 Dependency and test configuration
-
-**Status:** Fixed
-
-[Gradle標準platformによるBOM import](https://docs.spring.io/spring-boot/gradle-plugin/managing-dependencies.html)を使用し、dependency-management pluginは追加しない。JUnit / AssertJはBoot BOM、Modulith / ArchUnitはModulith BOMに従う。
-
-Gradle標準source setとTest taskで `test` / `integrationTest` / `architectureTest` を分離する。context smoke testはintegrationTestへ置く。Unit Test対象がないPhase 1ではtestをNO-SOURCEとし、架空のdomainを追加しない。
-
-JaCoCoはUnit / Integration Testを一つのreportへ集約する。構造検証のみのArchitecture Testはcoverage対象に含めない。coverage下限値は設定しない。
-
-## D-572 Phase 1 application scope
-
-**Status:** Fixed
-
-初期project name / application nameは `spring-application-starter`、groupは `dev.template`、base packageは `dev.template.application`、初期application versionは `0.1.0-SNAPSHOT` とする。
-
-Phase 1はSpring Boot core starterだけの非Web applicationとする。main起動後は処理がないため正常終了する。DB / REST / security / Vaadin等は計画の対象phaseで追加する。
-
-Modulith `verify()` をArchitecture Testから実行する。まだfeature moduleがないため、実moduleの境界違反検出とtechnical ArchUnit ruleはPhase 3以降に検証する。空moduleや空package維持用のsampleは作らない。
-
----
-
-# 58. Phase 2 Implementation Decisions
-
-## D-580 PostgreSQL and development lifecycle
-
-**Status:** Fixed
-
-PostgreSQL imageは `postgres:18.6` にpinする（[公式release](https://www.postgresql.org/docs/release/18.6/)）。ComposeとVersion Catalogのimage指定は同時に更新する。
-
-開発DBは `docker/compose.yaml` のdev profile、loopbackへの動的host port、persistent named volumeを使用する。PostgreSQL 18のvolume mount先は `/var/lib/postgresql`。passwordは `DEV_DB_PASSWORD` を必須とし、repositoryに保存しない。`bootRun` はBoot Docker Compose integrationの標準start-and-stop lifecycleを使用する。
-
-## D-581 Migration and schema ownership
-
-**Status:** Fixed; D-234 / D-235の具体方式を確定
-
-`src/main/resources/db/migration/<feature>/V<global-version>__<description>.sql` に配置する。Flyway標準の再帰scanを使用し、versionはapplication全体で一意とする。historyは `public.flyway_schema_history`、defaultSchemaはpublic。feature schemaはmigration SQLで作成する。
-
-最小tableは `feature.feature`。application側で生成するUUIDの `id` と `name varchar(100)` をNOT NULLで持つ。PKは `pk_feature`、ASCII spaceだけの名前を拒否するcheckは `ck_feature_name_not_blank`。初期data、audit column、unique name制約は追加しない。業務操作はPhase 3で設計する。
-
-参照: [Flyway locations](https://documentation.red-gate.com/flyway/reference/configuration/flyway-namespace/flyway-locations-setting)、[history table](https://documentation.red-gate.com/fd/flyway-schema-history-table-273973417.html)。
-
-## D-582 Code generation
-
-**Status:** Fixed
-
-Gradle標準JavaExec task `jooqCodegen` と独立したcodegen source setを用いる。Testcontainersのtemporary PostgreSQLをtry-with-resourcesで起動し、Flyway migrate後、[jOOQ標準GenerationTool](https://www.jooq.org/doc/3.21/manual/code-generation/codegen-execution/codegen-programmatic/)で生成する。追加Gradle pluginや独自migration loaderは不要。
-
-Flyway / jOOQ / PostgreSQL JDBC / TestcontainersのversionはBoot BOMに従う（初回は12.4.0 / 3.21.7 / 42.7.13 / 2.0.5）。applicationとcodegenで同じmigrationを使用する。
-
-出力は `build/generated-src/jooq/`、schema packageは `dev.template.application.jooq.<schema>`。compileJavaへ接続する。codegen classpath、migration、image、生成設定をtask inputsとして追跡する。生成設定はcodegen source内に置き、そのclassを入力として追跡する。timestampを生成物に含めない。generated codeは手書きコード用Checkstyle / SpotBugsおよびcoverage集計の対象外とする。
-
-## D-583 Database integration verification
-
-**Status:** Fixed
-
-Spring Boot TestcontainersのServiceConnectionでtest DBを注入し、development Composeはtestで無効化する。context smoke testとDB制約テストは同じtest classのcontainerを共有し、testごとにtransaction rollbackする。Docker不在時にtestをskipしない。
-
-Phase 2はgenerated typeの読み書きとDB制約をinfrastructure package内のIntegration Testで検証する。production Repository / APIはPhase 3で実装する。
-
----
-
-# 59. Phase 3 Implementation Decisions
-
-## D-590 Minimal feature contract
-
-**Status:** Fixed
-
-Commandは `FeatureCommands.create(String name)` → `Result<UUID, CreateFailure>`、Queryは `FeatureQueries.find(UUID id)` → `Optional<FeatureView>` とする。名前不正は `CreateFailure.INVALID_NAME`、未検出Queryはempty。名前の重複は許容する。schema変更や追加CRUDは不要。
-
-Resultは現在の利用箇所である `feature.api.command` にsealed interfaceとして配置し、Success / Failure recordはnullを許さない。共通moduleは必要になるまで作らない。
-
-名前は100 Unicode code point以内、ASCII spaceだけでないことを既存DB制約と揃える。PostgreSQL文字列で表現できないNUL / unpaired surrogateも拒否する。trim・Unicode正規化は行わず入力を保存する。domain Value Objectが不変条件を保証し、Commandがwrite前に同じ検証でFailureを返す。nullの名前もINVALID_NAME、nullのQuery IDはプログラミング上の誤用として拒否する。
-
-## D-591 UUID and time
-
-**Status:** Fixed; D-174を具体化
-
-[Java 25 UUID API](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/UUID.html)にはUUID v7 generatorがないため、[uuid-creator](https://github.com/f4b6a3/uuid-creator) 6.1.1をVersion Catalogで管理する。公開source JARの `TimeOrderedEpochFactory(Clock)` を確認済み。
-
-Command wiringでClock.systemUTC()をbeanとして提供し、TimeOrderedEpochFactoryのcreateをSupplier<UUID>としてusecaseへ渡す。domain/usecaseはlibraryとSpringを認識しない。testではClock.fixed / 固定Supplierを使う。不要な時刻columnや独自generatorは作らない。
-
-## D-592 Wiring and technical module
-
-**Status:** Fixed
-
-Command実装はtransaction boundary、usecaseはRepositoryとSupplierを使った作成、Query実装はread-only transactionとDataSource呼び出しを担当する。Repository / DataSource interfaceは既定packageに配置し、jOOQ adapterは両portを実装する。
-
-packageを跨ぐdomain型・usecase型・portのみpublicとし、Spring implementation/configurationはpackage-private。featureはcommand / query Named Interfaceだけを公開する。
-
-既存generated package `jooq.<schema>` はopenなtechnical moduleとして宣言する。Modulithがfeatureの内部隠蔽とcycleを検証し、ArchUnitがgenerated typeの利用をinfrastructureに制限する。domain/usecaseのSpring・jOOQ依存、Queryのdomain/usecase依存、transaction annotationの配置も検証する。存在しないWeb module向けruleやsampleは追加しない。
-
-## D-594 Static analysis scope
-
-**Status:** Fixed
-
-generated classesはSpotBugsの解析対象から除外するが、手書きinfrastructureの型解決用auxiliary classpathには含める。CreateFeatureUseCase.repositoryに対するEI_EXPOSE_REP2だけをfilterで除外する。DIで共有するRepository portは意図的に同一instanceを保持し、defensive copyを作らないため。その他のbug patternやfieldは除外しない。
-
-## D-593 Transaction verification
-
-**Status:** Fixed
-
-public APIをSpring proxy経由で呼び、test外transactionでのcommitと、Repositoryがwrite後に技術例外を送出した場合のrollbackをPostgreSQLで検証する。Queryの実read-only transactionも検証する。認可はPhase 4で追加する。
-
----
-
-# 60. Phase 4 Implementation Decisions
-
-## D-600 REST contract and API versioning
-
-**Status:** Fixed
-
-POST `/api/v1/features` は `{ "name": "..." }` を受け取り、201・Location・`{ "id": "..." }` を返す。GET `/api/v1/features/{id}` はFeatureView、未検出は404 ProblemDetail。
-
-Spring MVCの `usePathSegment(1)` とmappingの `version="1"` を使う。標準SemanticApiVersionParserはv prefixを扱えるためcustom resolverは作らない。未知versionは標準の400とする。参照: [MVC versioning](https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-config/api-version.html)、[parser](https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/web/accept/SemanticApiVersionParser.html)。
-
-name欠落/nullはJakarta Validationで400、malformed JSON / UUIDも400。名前のdomain rule違反（blank・長すぎる等）は既存typed Failureから422へ変換する。Unicode code pointによる長さ検証はCommandに任せ、UTF-16長のSize制約で上書きしない。
-
-## D-601 Authentication and authorization baseline
-
-**Status:** Fixed
-
-認証方式は案件依存を維持する。baselineは認証済みrequestを要求し、form login / HTTP Basic / 固定ユーザーを追加しない。BootのUserDetailsServiceAutoConfigurationを除外して自動生成ユーザーも作らない。接続する認証方式を実装するまで外部clientは保護APIを利用できない。正常系の動作確認はSpring Security test supportによるtest用認証で行う。
-
-@EnableMethodSecurityを有効にし、Commandにfeature:write、Queryにfeature:readを@PreAuthorizeで要求する。Authority定数はそれぞれのpublic API interfaceに置く。URLは粗いauthenticated制限のみ。CSRF保護を維持し、未認証は401、認証済み権限不足 / CSRF拒否は403。security filterのerrorもProblemDetailとする。
-
-参照: [Method Security](https://docs.spring.io/spring-security/reference/servlet/authorization/method-security.html)、[Boot default user configuration](https://docs.spring.io/spring-boot/api/java/org/springframework/boot/security/autoconfigure/UserDetailsServiceAutoConfiguration.html)。
-
-## D-602 Error handling and verification
-
-**Status:** Fixed
-
-REST error adviceはSpring標準ResponseEntityExceptionHandlerを基礎とする。予期しないExceptionは500 ProblemDetailへ変換し、clientへexception messageやstack traceを返さない。共通handlerでtechnical errorをloggingする。認証・認可例外は500として捕捉せずSecurity filterへ伝播する。
-
-Boot 4の `spring-boot-starter-webmvc-test` / `spring-boot-starter-security-test` でMockMvcへsecurity test supportを接続する。MockMvcは実際のSecurity filterとpublic APIを通し、PostgreSQLで正常応答、validation、version、401/403、CSRF、認可拒否のwrite防止、500とrollbackを検証する。既存のdirect API testにも必要Authorityを付与し、権限なしのdirect呼び出しが拒否されることを別途検証する。
-
----
-
-# 61. Phase 5 Implementation Decisions
-
-## D-610 Vaadin build
-
-**Status:** Fixed
-
-Vaadin 25.2.6 BOM / Gradle pluginを使用する。Flow用のvaadin-coreとvaadin-springを使い、商用componentやHillaをbaselineへ追加しない。Node/npmはVaadin toolingに管理させ、global installを要求しない。bootJarはplugin標準のproduction frontend buildを使う。Vaadin pluginはSpring Boot pluginの後に適用し、bootJarへのtask接続を有効にする。標準componentだけの構成では公式precompiled bundleを利用する。generated frontend / default indexはGit管理せず、Spotlessは手書きJavaとresourceだけを対象とする。
-
-参照: [Gradle plugin](https://plugins.gradle.org/plugin/com.vaadin)、[Gradle設定](https://vaadin.com/docs/latest/flow/configuration/gradle)、[25へのupgrade](https://vaadin.com/docs/latest/upgrading)。
-
-## D-611 UIとsecurity
-
-**Status:** Fixed
-
-`web.ui` の `/features` に名前による作成とUUIDによる取得を行う最小Viewを置く。公開Command / Query APIのみを使い、入力不正・Failure・未検出を画面で表示する。routeは `@PermitAll` で認証を要求し、業務Authorityは既存Method Securityで強制する。権限拒否を利用者へ表示する。
-
-RESTは専用filter chainで既存401 / 403 / CSRFを維持する。UI側はVaadinSecurityConfigurer標準の内部request / resource / navigation保護を使う。productionへlogin方式やtestユーザーを追加しない。
-
-参照: [Vaadin Security Configurer](https://vaadin.com/docs/latest/flow/security/vaadin-security-configurer)。
-
-## D-612 UI検証
-
-**Status:** Fixed
-
-Playwright Java 1.62.0をIntegration Test限定で採用し、GradleのplaywrightInstall taskから付属CLIでChromiumを取得する。integrationTestはproduction frontend生成とbrowser取得を前提taskとし、実ブラウザーで配布時と同じmodeを検証する。global Node/npmは要求しない（[公式手順](https://playwright.dev/java/docs/browsers)）。重要flowのE2Eは実HTTP serverとPostgreSQLに対するブラウザー操作で検証する。認証はtest source set限定の仕組みで付与し、production artifactへ含めない。作成・取得・validation・認可拒否を検証し、既存REST / transaction / module boundaryのquality gateも維持する。
-
----
-
-# 62. Phase 6 Implementation Decisions
-
-## D-620 Loggingとcorrelation
-
-**Status:** Fixed
-
-incoming requestごとにapplication生成UUIDのcorrelation IDをMDCへ設定し、X-Correlation-ID response headerとoutgoing HTTPへ伝播する。外部から来た任意headerを信用してlogへ流さない。filter終了時に以前のMDCを復元する。URL path / query / body / headers / arguments / Resultの値は標準logへ出さない。
-
-package-based AOPでCommandはINFO、QueryはDEBUGの開始・終了とdurationを記録する。typed FailureはINFOでvariantだけを記録する。AOPはMethod Securityより内側、transactionより外側に置き、commit失敗を成功として記録しない。予期しない例外はERRORで型とstack frameを記録し、例外message / payloadは出さない。RESTとVaadinにも同じ機密保護を適用する。
-
-## D-621 HTTP設定
-
-**Status:** Fixed
-
-Bootのstarter-restclientとHTTP Service Groupsを使用する。接続先・外部API interfaceは案件でinfrastructureへ追加し、baselineに架空clientを作らない。標準のspring.http.clients.connect-timeout / read-timeoutを2s / 10sの安全なdefaultとenvironment variableで設定し、同じprefixのvalidated ConfigurationProperties recordで必須・正のDurationを検証する。自動retryは追加しない。RestClientCustomizerでcorrelation伝播とmethod / host / status / durationだけのloggingを追加し、Group clientにも適用されることをtestで確認する。
-
-参照: [Boot HTTP clients](https://docs.spring.io/spring-boot/reference/io/rest-client.html)。
-
-## D-622 Actuatorとshutdown
-
-**Status:** Fixed
-
-health / info / metricsだけをWeb公開対象とし、healthのみ匿名許可、info / metricsはops:read Authorityを要求する。health detailは表示しない。Actuator専用filter chainをVaadinより先に置く。HikariCP metricsはBoot / Micrometer標準で取得する。graceful shutdownと30sのphase timeoutを明示する。
-
-参照: [Actuator endpoints](https://docs.spring.io/spring-boot/reference/actuator/endpoints.html)、[graceful shutdown](https://docs.spring.io/spring-boot/reference/web/graceful-shutdown.html)。
-
-## D-623 BatchとScheduling
-
-**Status:** Fixed
-
-Boot starter-batch-jdbcとBOM管理のSpring Batch 6.0.5を使う。restart/historyの基盤としてsystem schemaへ公式PostgreSQL metadata DDLをV2で適用する。framework互換性のためmetadataのcolumn名・型・ID生成は公式仕様を維持し、constraint名はrepository規約に合わせる。table-prefixはsystem.BATCH_、Bootのschema自動初期化はnever。migrationの正本はFlyway、jOOQは引き続きfeature schemaだけを生成する。
-
-JobParametersにはcredentialや不要なPIIを渡さない（metadataに永続化される）。framework launcherのparameter全文INFO logはWARN thresholdで抑え、共通listenerからexecution IDとstatusだけを記録する。Job自動起動は無効。productionにsample Jobを作らず、test限定Jobでmetadataの永続化と終了状態を検証する。JobExecutionListenerは共通logging用Beanとして用意し、案件Jobのbuilderで明示登録する。Schedulingは@EnableSchedulingとBoot標準schedulerを使い、productionに@Scheduled methodを作らない。fake Authenticationは使用しない。
-
-参照: [Boot Batch](https://docs.spring.io/spring-boot/reference/io/spring-batch.html)、[Batch 6.0.5 schema](https://github.com/spring-projects/spring-batch/blob/v6.0.5/spring-batch-core/src/main/resources/org/springframework/batch/core/schema-postgresql.sql)。
-
-file storage、CSV / Excel / PDF、event publication、async、retry、cacheはD-400〜D-425の案件依存条件を維持し、このphaseでは追加しない。
-
----
-
-# 63. Phase 7 Implementation Decisions
-
-## D-630 Documentation toolchain
-
-**Status:** Fixed
-
-単一Composeへdocs profileを追加する。docs-postgresはhostのloopback動的portとdocs network内だけで公開し、tmpfsを使う。Gradle taskごとに一意のCompose project名を生成し、成功・失敗ともfinallyでdownする。dev DBは起動しない。Compose全profileの変数展開に必要なDEV_DB_PASSWORDはdocs taskだけで一時値を渡す。
-
-docker/docs/Dockerfileへtbls 1.96.0、Mermaid CLI 11.17.0とNode 24.14.0、Pandoc / LuaLaTeX / 日本語font / Chromium / Graphviz / Popplerを集約する。Debian 13.1-slimと日付固定のDebian snapshotでOS packageを固定する。fontはimage内にinstallし、repositoryに含めない。Mermaidのtransitive dependencyはpackage-lock.jsonで固定し、image buildではnpm ciを使う。
-
-## D-631 DB資料
-
-**Status:** Fixed
-
-DB documentation生成物はGit管理しない。build/documentation/databaseへtblsのMarkdown / SVGを生成し、補足はdocs/database/notesへ置く。一時PostgreSQLへFlywayで全migrationを適用した実schemaを唯一の入力とし、SQLの独自解析は行わない。tbls 1.96.0内蔵SVG rendererでは文字幅とfontの不一致を確認したため、tblsが出力するDOTを同じimageのGraphviz dotでSVGへrenderする。関連定義の全文はMarkdownに残し、ER図では非表示とする。参照: [tbls renderer](https://github.com/k1LoW/tbls/blob/v1.96.0/output/gviz/gviz.go)。
-
-## D-632 API資料
-
-**Status:** Fixed
-
-Spring Boot 4対応のspringdoc-openapi 3.1.1を使用する。endpointとSwagger UIはdefault無効、明示的に有効化してもops:readで保護する。REST以外はschema対象へ含めない。Spring MVC標準のmappingにversion="v1"を指定してcanonical pathのprefixを保持し、必要なresponse schema / statusだけをController metadataへ補う。
-
-apiDocumentationは専用tagのSpringBootTest / MockMvcと一時PostgreSQLでspringdoc YAMLを取得し、契約を検証してbuild/documentation/api/v1/openapi.yamlへ出力する。通常checkのintegrationTestではこの生成testを除外する。
-
-参照: [springdoc](https://springdoc.org/)、[tbls](https://github.com/k1LoW/tbls)、[Mermaid CLI](https://github.com/mermaid-js/mermaid-cli)。
-
-## D-633 Project PDF
-
-**Status:** Fixed
-
-docs/project/index.mdとdiagrams/*.mmdをsourceとする。MermaidをSVGへ事前renderし、SVGを参照するMarkdownをPandoc / LuaLaTeXへ渡す。日本語fontはNoto CJKを使用する。出力はbuild/documentation/project、図と日本語PDFを目視検証する。documentationは3生成taskを集約し、通常buildへ接続しない。
-
----
-
-# 64. Phase 8 Implementation Decisions
-
-## D-640 CIとrelease
-
-**Status:** Fixed
-
-GitHub-hosted Ubuntu 24.04でJDK 25、Gradle Wrapper、Dockerを使う。CIはpush / pull_request / workflow_dispatchでcheckとbuildを実行する。PlaywrightのLinux system dependencyは専用Gradle taskから公式CLIのinstall-deps chromiumを呼ぶ。Actionsは公式releaseのcommit SHAへ固定する。通常jobのpermissionはcontents:read、checkout credentialは保持しない。
-
-release workflowはworkflow_dispatchによるbuild-only検証も提供する。publish jobはtag push時だけ実行する。releaseはv* tagをtriggerとし、Gradle taskでstable SemVerのproject versionとtagの完全一致を要求する。snapshot・不正tag・version不一致はpublish前に失敗する。build jobはcheck、JAR、documentation、Buildpacks image生成を行い、別のpublish jobだけにcontents:writeを付与する。GitHub CLIは既存tagをverifyし、JAR・OpenAPI YAML・DB資料ZIP・project PDFを添付する。OCI registryとdeploymentは案件依存のため自動pushしない。application versionの正本は既存Gradle project versionのまま。
-
-## D-641 Buildpacks
-
-**Status:** Fixed
-
-Boot 4.1.1標準のPaketo Noble Java tiny builderを使用し、builder 0.0.187と対応run image 0.0.130へ固定する。image参照はVersion Catalogへ集約する。JVM majorはJava ToolchainからBootが設定する。application image名はproject name / versionに従い、application Dockerfileは作らない。
-
-## D-642 Dependency updates
-
-**Status:** Fixed
-
-Renovateの標準Gradle / Wrapper / Dockerfile / Compose / Actions / npm managerを利用する。Version Catalog内のDocker imageだけregex managerで補完する。PostgreSQLとPaketo imageはそれぞれ同一PRへまとめ、全updateをreviewしてmergeする。自動mergeは無効。Debian snapshotの日付はtoolchain更新時に手動検証して更新する。
-
-参照: [Boot OCI image](https://docs.spring.io/spring-boot/gradle-plugin/packaging-oci-image.html)、[Paketo builder](https://github.com/paketo-buildpacks/builder-noble-java-tiny/blob/v0.0.187/builder.toml)、[Playwright CI](https://playwright.dev/java/docs/ci)、[Gradle Actions](https://github.com/gradle/actions)、[Renovate](https://docs.renovatebot.com/modules/manager/gradle/)、[GitHub Release CLI](https://cli.github.com/manual/gh_release_create)。
-
----
-
-# 65. Specification Inventory
-
-派生ドキュメントを作成・再生成する前に、以下を照合する。
-
-## Foundation
-
-- [x] Purpose
-- [x] Quality priority
-- [x] YAGNI
-- [x] Java 25
-- [x] Gradle Kotlin DSL
-- [x] Wrapper
-- [x] Toolchain
-- [x] Version Catalog
-- [x] Dependency policy
-- [x] Version management
-- [x] Application version ownership
-
-## Repository
-
-- [x] Single root AGENTS.md
-- [x] Project structure
-- [x] Generated outputs
-- [x] README role
-- [x] docs roles
-
-## Docker
-
-- [x] docker directory
-- [x] single compose.yaml
-- [x] dev profile
-- [x] docs profile
-- [x] docs Dockerfile
-- [x] documentation tools
-- [x] pinned tool versions
-- [x] no compose.docs.yaml
-- [x] no application Dockerfile baseline
-
-## Development
-
-- [x] no Dev Container
-- [x] host JVM
-- [x] no global Gradle
-- [x] Node/npm policy
-- [x] Gradle as single command surface
-
-## Architecture
-
-- [x] feature modular monolith
-- [x] Spring Modulith
-- [x] Named Interfaces
-- [x] package visibility
-- [x] Command architecture
-- [x] Query architecture
-- [x] Repository location
-- [x] DataSource location
-- [x] transaction boundaries
-- [x] module cycles
-- [x] ArchUnit scope
-
-## Error model
-
-- [x] Result
-- [x] Success
-- [x] Failure
-- [x] typed failures
-- [x] Exception policy
-- [x] rollback-safe conversion
-- [x] REST mapping
-- [x] Vaadin mapping
-- [x] Batch mapping
-
-## IDs / Time
-
-- [x] UUID v7
-- [x] DB UUID
-- [x] domain wrapper
-- [x] Instant
-- [x] LocalDate
-- [x] LocalTime
-- [x] ZonedDateTime
-- [x] OffsetDateTime
-- [x] Clock
-- [x] UTC
-
-## Database
-
-- [x] PostgreSQL
-- [x] schema per feature
-- [x] cross-feature writes
-- [x] cross-feature reads
-- [x] naming
-- [x] nullability
-- [x] numeric
-- [x] strings
-- [x] boolean
-- [x] audit
-- [x] physical delete
-- [x] FK policy
-- [x] Flyway
-- [x] migration history open question
-- [x] sample data
-- [x] no generic master import
-
-## DB environments
-
-- [x] development DB
-- [x] test DB
-- [x] codegen DB
-- [x] documentation DB
-
-## jOOQ
-
-- [x] code generation
-- [x] generated package separation
-- [x] generated source location
-- [x] no Git commit
-- [x] infrastructure-only usage
-- [x] incremental Gradle behavior
-
-## DB docs
-
-- [x] PostgreSQL COMMENT
-- [x] tbls
-- [x] ER SVG
-- [x] manual notes
-- [x] reviewable generated docs
-- [x] build artifact docs
-
-## REST
-
-- [x] REST adapter boundary
-- [x] DTO boundary
-- [x] URL style
-- [x] HTTP status
-- [x] ProblemDetail
-- [x] no ApiResponse wrapper
-- [x] Jackson defaults
-- [x] API versioning
-- [x] deprecation / sunset
-- [x] pagination
-- [x] typed sort
-
-## Vaadin
-
-- [x] web.ui
-- [x] public API only
-- [x] no Vaadin types in business layer
-
-## Security
-
-- [x] Spring Security baseline
-- [x] project-specific authentication
-- [x] Method Security
-- [x] Authority
-- [x] Role mapping
-- [x] SecurityContext boundary
-- [x] CurrentUser / Actor
-- [x] REST 401/403
-- [x] Actuator security
-
-## HTTP
-
-- [x] HTTP Service Client
-- [x] RestClient
-- [x] WebClient exceptional use
-- [x] no RestTemplate
-- [x] Service Groups
-- [x] DTO isolation
-- [x] business Port
-- [x] timeout
-- [x] retry policy
-- [x] external auth
-- [x] correlation propagation
-- [x] external call logging
-
-## Logging
-
-- [x] AOP/filter/interceptor
-- [x] Command logging
-- [x] Query logging
-- [x] Failure logging
-- [x] Exception logging
-- [x] sensitive-data protection
-- [x] no payload dump
-- [x] MDC
-- [x] pointcut strategy
-- [x] exceptional direct logger use
-
-## Configuration
-
-- [x] environment variables
-- [x] no committed secrets
-- [x] ConfigurationProperties
-- [x] Validation
-- [x] typed values
-- [x] startup failure
-- [x] startup validation test
-- [x] minimal profile duplication
-
-## Database pool
-
-- [x] HikariCP
-- [x] project-specific tuning
-- [x] Actuator metrics
-
-## File I/O
-
-- [x] adapter boundary
-- [x] no framework/technical I/O types in business contract
-- [x] storage Port
-- [x] filename safety
-- [x] file validation
-- [x] temp cleanup
-- [x] large-file memory behavior
-- [x] CSV UTF-8/comma/quote/newlines
-- [x] Excel/PDF project-specific
-
-## Cache / Events
-
-- [x] no cache baseline
-- [x] no cache dependencies baseline
-- [x] synchronous default
-- [x] Spring Modulith Events
-- [x] no event overuse
-- [x] async considerations
-- [x] no Mail baseline
-
-## Batch / Scheduling
-
-- [x] Batch adapter
-- [x] public API dependency
-- [x] correct Batch use cases
-- [x] no meaningless sample Job
-- [x] no auto-run-all
-- [x] Failure / Exception semantics
-- [x] Scheduling adapter
-- [x] no Quartz baseline
-
-## Testing / Quality
-
-- [x] unit tests
-- [x] integration tests
-- [x] architecture tests
-- [x] no H2
-- [x] MockMvc
-- [x] Vaadin E2E
-- [x] limited SpringBootTest
-- [x] source sets
-- [x] test naming
-- [x] Spotless
-- [x] Checkstyle
-- [x] SpotBugs
-- [x] JaCoCo
-- [x] check quality gate
-
-## Documentation
-
-- [x] Markdown
-- [x] Mermaid
-- [x] Mermaid → SVG
-- [x] Pandoc
-- [x] LuaLaTeX
-- [x] Japanese PDF
-- [x] databaseDocumentation
-- [x] apiDocumentation
-- [x] projectDocumentation
-- [x] documentation aggregate
-- [x] docs excluded from normal build
-
-## Release
-
-- [x] bootJar
-- [x] bootBuildImage
-- [x] SemVer
-- [x] Git tags
-- [x] GitHub Actions
-- [x] GitHub Release
-- [x] release assets
-- [x] project-specific deployment
-- [x] no production Compose baseline
-
-## Agent workflow
-
-- [x] Decision Ledger source of truth
-- [x] single AGENTS.md
-- [x] Codex read order
-- [x] one phase at a time
-- [x] validation workflow
-- [x] Ponytail role
-- [x] official-doc verification
+**影響:** checkでも解析・配布境界に必要なcompileとjOOQ生成、JAR作成は実行する。test実行とは区別する。個別testのreportと集約coverageはbuild/reportsへ出力し、buildとreleaseの品質保証は維持する。

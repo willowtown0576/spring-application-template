@@ -8,9 +8,38 @@
         <module name="AvoidStarImport"/>
         <module name="UnusedImports"/>
         <module name="RedundantImport"/>
+        <module name="SuppressWarnings">
+            <property name="format" value="^(deprecation|removal|all)$"/>
+        </module>
+        <module name="MatchXpath">
+            <property name="query" value="//ANNOTATION[IDENT[@text='Deprecated'] or DOT/IDENT[@text='Deprecated']]"/>
+            <message key="matchxpath.match" value="Deprecated declarations hide compiler deprecation warnings and are not permitted in handwritten code."/>
+        </module>
         <module name="EqualsHashCode"/>
         <module name="FallThrough"/>
         <module name="MissingOverride"/>
         <module name="OneStatementPerLine"/>
+        <module name="FinalLocalVariable"/>
+        <module name="MatchXpath">
+            <property name="query" value="//VARIABLE_DEF[parent::OBJBLOCK[parent::CLASS_DEF] and not(MODIFIERS/FINAL) and not(IDENT[@text='nextId'] and ancestor::CLASS_DEF/IDENT[@text='ComponentGalleryView'])]"/>
+            <message key="matchxpath.match" value="Class fields must be final; mutable fields require a documented, narrowly scoped exception."/>
+        </module>
+        <module name="FinalParameters">
+            <property name="tokens" value="METHOD_DEF,CTOR_DEF,LITERAL_CATCH,FOR_EACH_CLAUSE"/>
+        </module>
+        <module name="MissingJavadocType">
+            <property name="scope" value="private"/>
+        </module>
+        <module name="JavadocType">
+            <property name="scope" value="private"/>
+        </module>
+        <module name="MissingJavadocMethod">
+            <property name="scope" value="private"/>
+            <property name="allowedAnnotations" value=""/>
+        </module>
+        <module name="JavadocMethod">
+            <property name="accessModifiers" value="public,protected,package,private"/>
+            <property name="allowedAnnotations" value=""/>
+        </module>
     </module>
 </module>

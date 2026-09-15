@@ -1,0 +1,27 @@
+# Copy to config/local-env.properties and set DB and login credentials.
+# UTF-8 Java Properties: no shell quotes, export, or ${...} expansion.
+# Escape a literal backslash as \\.
+# Existing environment variables take precedence.
+DEV_DB_PASSWORD=
+
+# Login credentials: password >= 12 characters, <= 72 UTF-8 bytes.
+APP_USER_NAME=
+APP_USER_PASSWORD=
+
+# Swagger UI: uncomment BOTH settings, restart, and log in again.
+# API_DOCUMENTATION_ENABLED=true
+# APP_USER_OPERATIONS_READ=true
+# Both settings default to false when omitted.
+
+# Optional HTTP server settings (default: port 8080, root context).
+# SERVER_PORT=8080
+# SERVER_SERVLET_CONTEXT_PATH=/app
+
+# Optional outgoing HTTP timeouts.
+# HTTP_CONNECT_TIMEOUT=2s
+# HTTP_READ_TIMEOUT=10s
+
+# This file is read only by bootRun. For deployed JAR/OCI applications,
+# supply APP_USER_* and SPRING_DATASOURCE_URL / SPRING_DATASOURCE_USERNAME /
+# SPRING_DATASOURCE_PASSWORD through the deployment environment.
+# See docs/operations.md. Gradle generates DOCS_DB_PASSWORD for the temporary documentation database.

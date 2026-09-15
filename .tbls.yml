@@ -1,9 +1,13 @@
 name: spring-application-starter
-desc: Feature schema and Spring Batch metadata
+desc: Application database
 docPath: build/documentation/database
 er:
-  format: svg
+  format: mermaid
   hideDef: true
-include:
-  - feature.*
-  - system.*
+  showColumnTypes:
+    related: true
+  distance: 1
+exclude:
+  - public.flyway_schema_history
+  - information_schema.*
+  - pg_*.*

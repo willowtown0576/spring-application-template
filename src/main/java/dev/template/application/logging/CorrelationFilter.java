@@ -14,33 +14,33 @@ import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+/** 受信リクエストにサーバー生成の相関IDを付与し、終了時に以前のMDCを復元する。 */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
 class CorrelationFilter extends OncePerRequestFilter {
-  static final String HEADER = "X-Correlation-ID";
-  static final String KEY = "correlationId";
-  private static final Logger LOG = LoggerFactory.getLogger(CorrelationFilter.class);
+    static final String HEADER = "X-Correlation-ID";
+    static final String KEY = "correlationId";
+    private static final Logger LOG = LoggerFactory.getLogger(CorrelationFilter.class);
 
-  @Override
-  protected void doFilterInternal(
-      HttpServletRequest request, HttpServletResponse response, FilterChain chain)
-      throws ServletException, IOException {
-    String previous = MDC.get(KEY);
-    MDC.put(KEY, UUID.randomUUID().toString());
-    response.setHeader(HEADER, MDC.get(KEY));
-    long start = System.nanoTime();
-    int status = 500;
-    try {
-      chain.doFilter(request, response);
-      status = response.getStatus();
-    } finally {
-      LOG.info(
-          "HTTP incoming method={} status={} durationMs={}",
-          request.getMethod(),
-          status,
-          (System.nanoTime() - start) / 1_000_000);
-      if (previous == null) MDC.remove(KEY);
-      else MDC.put(KEY, previous);
+    /** {@inheritDoc} */
+    @Override
+    protected void doFilterInternal(final HttpServletRequest request, final HttpServletResponse response,
+        final FilterChain chain) throws ServletException, IOException {
+        final String previous = MDC.get(KEY);
+        MDC.put(KEY, UUID.randomUUID().toString());
+        response.setHeader(HEADER, MDC.get(KEY));
+        final long start = System.nanoTime();
+        int status = 500;
+        try {
+            chain.doFilter(request, response);
+            status = response.getStatus();
+        } finally {
+            LOG.info("HTTP incoming method={} status={} durationMs={}", request.getMethod(), status,
+                (System.nanoTime() - start) / 1_000_000);
+            if (previous == null)
+                MDC.remove(KEY);
+            else
+                MDC.put(KEY, previous);
+        }
     }
-  }
 }

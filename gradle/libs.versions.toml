@@ -9,7 +9,7 @@ vaadin = "25.2.6"
 spring-boot = "4.1.1"
 spring-modulith = "2.1.1"
 spotless = "8.10.2"
-google-java-format = "1.36.1"
+eclipse-jdt = "4.40"
 spotbugs-plugin = "6.5.11"
 spotbugs-engine = "4.10.4"
 checkstyle = "14.1.0"
@@ -27,6 +27,7 @@ spring-boot-starter-batch-jdbc = { module = "org.springframework.boot:spring-boo
 playwright = { module = "com.microsoft.playwright:playwright", version.ref = "playwright" }
 vaadin-bom = { module = "com.vaadin:vaadin-bom", version.ref = "vaadin" }
 vaadin-core = { module = "com.vaadin:vaadin-core" }
+vaadin-dev = { module = "com.vaadin:vaadin-dev" }
 vaadin-spring = { module = "com.vaadin:vaadin-spring" }
 spring-boot-starter-webmvc = { module = "org.springframework.boot:spring-boot-starter-webmvc" }
 spring-boot-starter-security = { module = "org.springframework.boot:spring-boot-starter-security" }

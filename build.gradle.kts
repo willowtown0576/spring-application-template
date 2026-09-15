@@ -1,4 +1,10 @@
+import com.github.spotbugs.snom.SpotBugsTask
+import org.springframework.boot.gradle.tasks.bundling.BootBuildImage
+import org.springframework.boot.gradle.tasks.bundling.BootJar
+import org.springframework.boot.gradle.tasks.run.BootRun
+import java.util.Properties
 import java.util.UUID
+import java.util.zip.ZipFile
 
 plugins {
     java
@@ -13,6 +19,21 @@ plugins {
 group = "dev.template"
 version = "0.1.0-SNAPSHOT"
 
+tasks.named<BootRun>("bootRun") {
+    val localEnvironment = layout.projectDirectory.file("config/local-env.properties")
+    doFirst {
+        if (localEnvironment.asFile.exists()) {
+            val values = Properties()
+            localEnvironment.asFile.reader(Charsets.UTF_8).use { values.load(it) }
+            values.stringPropertyNames().forEach { name ->
+                if (!environment.containsKey(name)) {
+                    environment(name, values.getProperty(name))
+                }
+            }
+        }
+    }
+}
+
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(25)
@@ -23,18 +44,13 @@ repositories {
     mavenCentral()
 }
 
-val integrationTest = sourceSets.create("integrationTest")
-val architectureTest = sourceSets.create("architectureTest")
-val codegen = sourceSets.create("codegen")
-
-listOf(integrationTest, architectureTest).forEach {
-    configurations[it.implementationConfigurationName].extendsFrom(configurations.testImplementation.get())
-    configurations[it.runtimeOnlyConfigurationName].extendsFrom(configurations.testRuntimeOnly.get())
-    it.compileClasspath += sourceSets.main.get().output
-    it.runtimeClasspath += sourceSets.main.get().output
+val codegenRuntime = configurations.create("codegenRuntime") {
+    isCanBeConsumed = false
+    isCanBeResolved = true
 }
 
 dependencies {
+    add(codegenRuntime.name, project(":codegen"))
     implementation(platform(libs.vaadin.bom))
     implementation(libs.springdoc.webmvc.ui)
     implementation(libs.vaadin.core)
@@ -56,29 +72,25 @@ dependencies {
     runtimeOnly(libs.flyway.postgresql)
     runtimeOnly(libs.postgresql)
     developmentOnly(platform(libs.spring.boot.bom))
+    developmentOnly(platform(libs.vaadin.bom))
+    developmentOnly(libs.vaadin.dev)
     developmentOnly(libs.spring.boot.docker.compose)
     testImplementation(libs.spring.boot.starter.test)
     testImplementation(libs.spring.boot.starter.webmvc.test)
     testImplementation(libs.spring.boot.starter.security.test)
     testRuntimeOnly(libs.junit.platform.launcher)
-    add(architectureTest.implementationConfigurationName, platform(libs.spring.modulith.bom))
-    add(architectureTest.implementationConfigurationName, libs.spring.modulith.starter.test)
-    add(integrationTest.implementationConfigurationName, libs.playwright)
-    add(integrationTest.implementationConfigurationName, libs.spring.boot.testcontainers)
-    add(integrationTest.implementationConfigurationName, libs.testcontainers.postgresql)
-    add(integrationTest.implementationConfigurationName, libs.testcontainers.junit)
-    add(codegen.implementationConfigurationName, platform(libs.spring.boot.bom))
-    add(codegen.implementationConfigurationName, libs.jooq.codegen)
-    add(codegen.implementationConfigurationName, libs.flyway.core)
-    add(codegen.implementationConfigurationName, libs.flyway.postgresql)
-    add(codegen.implementationConfigurationName, libs.testcontainers.postgresql)
-    add(codegen.runtimeOnlyConfigurationName, libs.postgresql)
+    testImplementation(platform(libs.spring.modulith.bom))
+    testImplementation(libs.spring.modulith.starter.test)
+    testImplementation(libs.playwright)
+    testImplementation(libs.spring.boot.testcontainers)
+    testImplementation(libs.testcontainers.postgresql)
+    testImplementation(libs.testcontainers.junit)
 }
 
 val jooqCodegen = tasks.register<JavaExec>("jooqCodegen") {
     description = "Generates jOOQ sources from a migrated temporary PostgreSQL database."
     group = "code generation"
-    classpath = codegen.runtimeClasspath
+    classpath = codegenRuntime
     mainClass = "dev.template.build.JooqCodegen"
     javaLauncher = javaToolchains.launcherFor(java.toolchain)
     val migrations = layout.projectDirectory.dir("src/main/resources/db/migration")
@@ -97,48 +109,58 @@ tasks.named<Checkstyle>("checkstyleMain") {
     setSource(fileTree("src/main/java"))
 }
 
-tasks.named<com.github.spotbugs.snom.SpotBugsTask>("spotbugsMain") {
+tasks.named<SpotBugsTask>("spotbugsMain") {
     auxClassPaths.from(sourceSets.main.get().output)
     excludeFilter = file("config/spotbugs/exclude.xml")
     classes = sourceSets.main.get().output.classesDirs.asFileTree.matching {
-        exclude("dev/template/application/jooq/**")
+        exclude("**/jooq/**")
     }
 }
 
 tasks.withType<JavaCompile>().configureEach {
     options.encoding = "UTF-8"
-    options.compilerArgs.add("-parameters")
+    options.compilerArgs.addAll(listOf("-parameters", "-Xlint:deprecation", "-Xlint:dep-ann", "-Xlint:removal", "-Werror"))
 }
 
 tasks.withType<Test>().configureEach {
     useJUnitPlatform()
 }
 
+val unitTestTask = tasks.register<Test>("unitTest") {
+    description = "Runs domain and application unit tests."
+    group = LifecycleBasePlugin.VERIFICATION_GROUP
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
+    useJUnitPlatform { excludeTags("integration", "architecture", "documentation") }
+}
+
 val playwrightInstall = tasks.register<JavaExec>("playwrightInstall") {
     description = "Installs the Chromium browser used by UI integration tests."
     group = LifecycleBasePlugin.VERIFICATION_GROUP
-    classpath = configurations[integrationTest.runtimeClasspathConfigurationName]
+    classpath = sourceSets.test.get().runtimeClasspath
     mainClass = "com.microsoft.playwright.CLI"
     args("install", "chromium")
 }
 
 val integrationTestTask = tasks.register<Test>("integrationTest") {
     dependsOn(playwrightInstall, "vaadinBuildFrontend")
+    outputs.dir(layout.buildDirectory.dir("reports/ui"))
     environment("PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD", "1")
-    useJUnitPlatform { excludeTags("documentation") }
+    useJUnitPlatform { includeTags("integration") }
     description = "Runs integration tests."
     group = LifecycleBasePlugin.VERIFICATION_GROUP
-    testClassesDirs = integrationTest.output.classesDirs
-    classpath = integrationTest.runtimeClasspath
-    shouldRunAfter(tasks.test)
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
+    shouldRunAfter(unitTestTask)
     systemProperty("test.postgres.image", libs.versions.postgres.image.get())
 }
 
 val architectureTestTask = tasks.register<Test>("architectureTest") {
+    useJUnitPlatform { includeTags("architecture") }
     description = "Verifies application module boundaries."
     group = LifecycleBasePlugin.VERIFICATION_GROUP
-    testClassesDirs = architectureTest.output.classesDirs
-    classpath = architectureTest.runtimeClasspath
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
     shouldRunAfter(integrationTestTask)
     extensions.configure<JacocoTaskExtension> {
         isEnabled = false
@@ -147,12 +169,13 @@ val architectureTestTask = tasks.register<Test>("architectureTest") {
 
 spotless {
     java {
-        target("src/main/java/**/*.java", "src/test/java/**/*.java",
-            "src/integrationTest/java/**/*.java", "src/architectureTest/java/**/*.java", "src/codegen/java/**/*.java")
-        googleJavaFormat(libs.versions.google.java.format.get())
+        target("src/main/java/**/*.java", "src/test/java/**/*.java", "codegen/src/main/java/**/*.java")
+        importOrder("#", "")
+        removeUnusedImports()
+        eclipse(libs.versions.eclipse.jdt.get()).configFile("config/formatter/eclipse-java.xml")
     }
     format("misc") {
-        target("*.md", "docs/**/*.md", "*.gradle.kts", "gradle.properties", "gradle/*.toml",
+        target("*.md", "docs/**/*.md", "*.gradle.kts", "codegen/*.gradle.kts", "gradle.properties", "gradle/*.toml",
             ".gitignore", ".gitattributes", "config/**/*.xml", "src/main/resources/**/*.yml", "src/main/resources/**/*.sql", "docker/*.yaml", ".github/workflows/*.yml", "renovate.json")
         trimTrailingWhitespace()
         endWithNewline()
@@ -173,12 +196,13 @@ jacoco {
 }
 
 tasks.jacocoTestReport {
-    dependsOn(tasks.test, integrationTestTask)
+    setDependsOn(listOf(unitTestTask, integrationTestTask))
+    setMustRunAfter(listOf(unitTestTask, integrationTestTask))
     classDirectories.setFrom(sourceSets.main.get().output.classesDirs.asFileTree.matching {
-        exclude("dev/template/application/jooq/**")
+        exclude("**/jooq/**")
     })
     executionData.setFrom(fileTree(layout.buildDirectory.dir("jacoco")) {
-        include("test.exec", "integrationTest.exec")
+        include("unitTest.exec", "integrationTest.exec")
     })
     reports {
         xml.required = true
@@ -186,11 +210,35 @@ tasks.jacocoTestReport {
     }
 }
 
-tasks.check {
-    dependsOn(integrationTestTask, architectureTestTask, tasks.jacocoTestReport)
+val allTestsReport = tasks.register<TestReport>("testReport") {
+    description = "Combines unit, integration, and architecture test results into one HTML report."
+    group = LifecycleBasePlugin.VERIFICATION_GROUP
+    destinationDirectory = layout.buildDirectory.dir("reports/tests/all")
+    testResults.from(unitTestTask, integrationTestTask, architectureTestTask)
 }
 
-// Documentation uses isolated Compose projects and never starts the development DB.
+tasks.test {
+    description = "Runs unit, integration, and architecture tests and generates coverage."
+    // Java plugin owns this Test task; dedicated tasks execute each suite once.
+    reports.html.required = false
+    reports.junitXml.required = false
+    testClassesDirs = files()
+    classpath = files()
+    extensions.configure<JacocoTaskExtension> { isEnabled = false }
+    dependsOn(unitTestTask, integrationTestTask, architectureTestTask, allTestsReport, tasks.jacocoTestReport, ":codegen:test")
+}
+
+tasks.check {
+    description = "Checks formatting, static analysis, and production JAR boundaries."
+    setDependsOn(listOf("spotlessCheck", "checkstyleMain", "checkstyleTest", "spotbugsMain", "spotbugsTest", ":codegen:check"))
+}
+
+tasks.build {
+    description = "Runs checks and all tests, generates coverage, and assembles artifacts."
+    dependsOn(tasks.test)
+}
+
+// Documentation uses a dedicated temporary database in an isolated Compose project.
 val docsPassword = UUID.randomUUID().toString()
 val docsDatabaseProject = "starter-docs-db-" + UUID.randomUUID().toString().take(8)
 fun docsCompose(projectName: String, vararg arguments: String): String {
@@ -224,7 +272,7 @@ val databaseDocumentation = tasks.register<JavaExec>("databaseDocumentation") {
     group = "documentation"
     dependsOn(documentationImage)
     finalizedBy(stopDocumentationDatabase)
-    classpath = codegen.runtimeClasspath
+    classpath = codegenRuntime
     mainClass = "dev.template.build.DocumentationMigration"
     javaLauncher = javaToolchains.launcherFor(java.toolchain)
     inputs.dir("src/main/resources/db/migration")
@@ -246,37 +294,11 @@ val databaseDocumentation = tasks.register<JavaExec>("databaseDocumentation") {
     }
 }
 
-val projectDocumentation = tasks.register("projectDocumentation") {
-    description = "Renders Mermaid diagrams and generates the Japanese project PDF."
-    group = "documentation"
-    dependsOn(documentationImage)
-    inputs.file("docker/compose.yaml")
-    inputs.dir("docs/project")
-    inputs.dir("docker/docs")
-    outputs.dir(layout.buildDirectory.dir("documentation/project"))
-    doLast {
-        val projectName = "starter-docs-pdf-" + UUID.randomUUID().toString().take(8)
-        layout.buildDirectory.dir("documentation/project/diagrams").get().asFile.mkdirs()
-        try {
-            fileTree("docs/project/diagrams").matching { include("*.mmd") }.files.sorted().forEach { diagram ->
-                docsCompose(projectName, "run", "--rm", "--no-deps", "docs-tools", "mmdc",
-                    "-p", "/opt/docs/puppeteer.json", "-c", "/opt/docs/mermaid.json", "-i", "docs/project/diagrams/${diagram.name}",
-                    "-o", "build/documentation/project/diagrams/${diagram.nameWithoutExtension}.svg", "-b", "transparent")
-            }
-            docsCompose(projectName, "run", "--rm", "--no-deps", "docs-tools", "pandoc",
-                "docs/project/index.md", "--resource-path=build/documentation/project", "--pdf-engine=lualatex",
-                "-o", "build/documentation/project/project.pdf")
-        } finally {
-            docsCompose(projectName, "down", "--volumes", "--remove-orphans")
-        }
-    }
-}
-
 val apiDocumentation = tasks.register<Test>("apiDocumentation") {
     description = "Exports and verifies springdoc OpenAPI YAML against an isolated test database."
     group = "documentation"
-    testClassesDirs = integrationTest.output.classesDirs
-    classpath = integrationTest.runtimeClasspath
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
     useJUnitPlatform { includeTags("documentation") }
     systemProperty("test.postgres.image", libs.versions.postgres.image.get())
     systemProperty("documentation.api.output", layout.buildDirectory.file("documentation/api/v1/openapi.yaml").get().asFile.absolutePath)
@@ -285,21 +307,21 @@ val apiDocumentation = tasks.register<Test>("apiDocumentation") {
 }
 
 tasks.register("documentation") {
-    description = "Generates database, API, and project documentation."
+    description = "Generates database and API documentation."
     group = "documentation"
-    dependsOn(databaseDocumentation, apiDocumentation, projectDocumentation)
+    dependsOn(databaseDocumentation, apiDocumentation)
 }
 
 // Linux CI prerequisites remain behind the same Gradle command surface.
 tasks.register<JavaExec>("playwrightInstallDeps") {
     description = "Installs Chromium system libraries on Linux (requires sudo)."
     group = LifecycleBasePlugin.VERIFICATION_GROUP
-    classpath = configurations[integrationTest.runtimeClasspathConfigurationName]
+    classpath = sourceSets.test.get().runtimeClasspath
     mainClass = "com.microsoft.playwright.CLI"
     args("install-deps", "chromium")
 }
 
-tasks.named<org.springframework.boot.gradle.tasks.bundling.BootBuildImage>("bootBuildImage") {
+tasks.named<BootBuildImage>("bootBuildImage") {
     builder.set(libs.versions.buildpack.builder.image)
     runImage.set(libs.versions.buildpack.run.image)
 }
@@ -324,12 +346,45 @@ val databaseDocumentationZip = tasks.register<Zip>("databaseDocumentationZip") {
 }
 
 tasks.register<Sync>("releaseArtifacts") {
-    description = "Verifies and collects the JAR and documentation for a GitHub Release."
+    description = "Generates and collects the JAR and documentation for a GitHub Release."
     group = "release"
-    dependsOn(tasks.check, "documentation")
+    dependsOn("documentation")
     from(tasks.named("bootJar"))
     from(databaseDocumentationZip)
     from(layout.buildDirectory.file("documentation/api/v1/openapi.yaml"))
-    from(layout.buildDirectory.file("documentation/project/project.pdf"))
     into(layout.buildDirectory.dir("release"))
 }
+
+val verifyProductionJar = tasks.register("verifyProductionJar") {
+    description = "Verifies that build tools and test classes stay out of the production JAR."
+    group = LifecycleBasePlugin.VERIFICATION_GROUP
+    val bootJar = tasks.named<BootJar>("bootJar")
+    val excludedOutputs = files(sourceSets.test.get().output.classesDirs,
+        project(":codegen").layout.buildDirectory.dir("classes/java/main"))
+    dependsOn(bootJar, tasks.testClasses, ":codegen:classes")
+    inputs.file(bootJar.flatMap { it.archiveFile })
+    inputs.files(excludedOutputs)
+    val mainOutputs = sourceSets.main.get().output.classesDirs
+    inputs.files(mainOutputs)
+    doLast {
+        ZipFile(bootJar.get().archiveFile.get().asFile).use { jar ->
+            excludedOutputs.files.filter { it.isDirectory }.forEach { directory ->
+                directory.walkTopDown().filter { it.isFile && it.extension == "class" }.forEach { compiled ->
+                    val entry = "BOOT-INF/classes/" + compiled.relativeTo(directory).invariantSeparatorsPath
+                    check(jar.getEntry(entry) == null) { "Non-production class packaged: $entry" }
+                }
+            }
+            check(jar.entries().asSequence().none { it.name.startsWith("BOOT-INF/lib/codegen") }) {
+                "Build tool JAR must not be packaged in the application."
+            }
+            mainOutputs.files.filter { it.isDirectory }.forEach { directory ->
+                directory.walkTopDown().filter { it.isFile && it.extension == "class" }.forEach { compiled ->
+                    val entry = "BOOT-INF/classes/" + compiled.relativeTo(directory).invariantSeparatorsPath
+                    check(jar.getEntry(entry) != null) { "Production class missing from JAR: $entry" }
+                }
+            }
+        }
+    }
+}
+
+tasks.check { dependsOn(verifyProductionJar) }

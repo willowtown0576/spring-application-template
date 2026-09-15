@@ -1,75 +1,109 @@
-# Database
+# DBガイド
 
-この文書は [Decision Ledger](decisions.md) の派生資料である。開発DB・migration・codegen・DB統合テストはPhase 2で実装済み。documentation用DBと生成taskはPhase 7で実装済み。進捗は [実装計画](implementation-plan.md) を参照する。
+設計判断は[ADR-007／008](decisions.md#adr-007)。schema変更はFlyway、JavaのSQL型はjOOQ、生成資料は実際のPostgreSQL schemaを正本とする。
 
-## 所有権とデータ整合性
+## 所有権と型
 
-PostgreSQL schemaは原則feature単位で所有する。他feature schemaへの直接writeは禁止し、public Command APIを通す。readのcross-feature JOINは許可する。具体的なcross-feature query構成とcross-feature FKは必要になるまで固定しない（D-190〜D-194、D-220〜D-221）。
-
-identifierはsnake_case、own PKは `id`、参照は `<target>_id`。defaultはNOT NULL、削除はphysical delete。audit columnは必要なtableにだけ追加し、soft deleteや履歴用columnを機械的に追加しない（D-200〜D-213）。
+schemaは原則feature単位。他featureへの直接writeは禁止し、公開Command APIを通す。cross-feature read JOINは許可する。同feature内のFKを活用し、cross-feature FKは整合性とmodule自律性を比較して案件で決める。
 
 | 概念 | PostgreSQL | Java |
-| --- | --- | --- |
-| ID | `uuid` | `UUID`（application/domain側でv7生成） |
-| 実時刻 | `timestamptz` | `Instant` |
-| 業務日付 | `date` | `LocalDate` |
-| 時刻のみ | `time` | `LocalTime` |
-| 金額・小数 | `numeric(p,s)` | `BigDecimal` |
-| 長さ制限のある文字列 | `varchar(n)` | `String`（ValidationとDB制約を整合） |
-| 長さ制限のない説明 | `text` | `String` |
+|---|---|---|
+| ID | uuid | UUID。application側でv7生成 |
+| 実時刻 | timestamptz | Instant。UTC Clockを注入 |
+| 業務日付 | date | LocalDate |
+| 時刻のみ | time | LocalTime |
+| 金額・小数 | numeric(p,s) | BigDecimal |
+| 長さ制限のある文字列 | varchar(n) | String。validationとDB制約を一致 |
+| 長さ制限のない説明 | text | String |
 
-constraint/index名は `pk_<table>`、`fk_<table>_<referenced_table>`、`uk_<table>_<column...>`、`ix_<table>_<column...>`、`ck_<table>_<purpose>` とする。
+実時刻はInstant／timestamptz、金額はBigDecimal／numericを使用する。地域計算にはZoneIdを明示する。NOT NULLをdefaultとし、absenceに意味がある場合だけnullableにする。booleanは本当に二値の概念に限定する。
+
+| 対象 | 命名 |
+|---|---|
+| identifier | snake_case |
+| 自tableのPK列 | id |
+| 参照列 | `<target>_id` |
+| PK | `pk_<table>` |
+| FK | `fk_<table>_<referenced_table>` |
+| UNIQUE | `uk_<table>_<column...>` |
+| index | `ix_<table>_<column...>` |
+| CHECK | `ck_<table>_<purpose>` |
+
+削除はphysical delete。auditは必要なtableにだけcreated_at／updated_at／created_by／updated_byを使い、actor付与は案件で決める。論理削除列の採用は案件要件で判断し、履歴は履歴modelとして設計する。
 
 ## 4用途のDB
 
-| 用途 | 実行環境 | lifecycle |
-| --- | --- | --- |
-| Development | Docker Compose `dev` profile | persistent named volume |
-| Test | PostgreSQL Testcontainers | test用に隔離し、終了後破棄 |
-| jOOQ codegen | temporary PostgreSQL | empty DB → Flyway → codegen → 破棄 |
-| Documentation | Docker Compose `docs` profileのtemporary PostgreSQL | empty DB → Flyway → tbls → 破棄 |
+| 用途 | lifecycle |
+|---|---|
+| 開発 | Compose dev profile、persistent named volume、Boot起動・停止連携 |
+| test | Testcontainers、隔離、一時利用後破棄 |
+| jOOQ生成 | Testcontainersの一時DBからSQL型を生成 |
+| 資料生成 | Compose docs profileの一時DBからschema資料を生成 |
 
-開発DBをcodegenやdocumentationに流用しない（D-250〜D-265）。Docker設定は一つの `docker/compose.yaml` に集約する。
+生成処理は用途ごとに空のDBへmigrationを適用する。
 
-PostgreSQLは `postgres:18.6`。ComposeとVersion Catalogのimageは同時に更新する。開発DBは `DEV_DB_PASSWORD` を必須とし、hostにはloopbackの動的portだけを公開する。PostgreSQL 18のnamed volume mount先は `/var/lib/postgresql`。
+```mermaid
+flowchart LR
+    subgraph CODEGEN[SQL型の生成]
+        direction TB
+        CDB[一時PostgreSQLを起動] --> CM[Flyway migration]
+        CM --> J[jOOQ GenerationTool]
+        J --> JAVA[Java source出力]
+        JAVA --> CC[一時DBを破棄]
+    end
+    subgraph DOCS[DB資料の生成]
+        direction TB
+        DDB[一時PostgreSQLを起動] --> DM[Flyway migration]
+        DM --> T[tblsでschema取得]
+        T --> M[MarkdownとER SVG出力]
+        M --> DC[一時DBを破棄]
+    end
+```
 
-## FlywayとjOOQ
+図は正常終了時の順序を示す。一時DBの後始末は失敗時にも実行する。
 
-Flyway migrationをschema変更履歴の正本とし、適用済migrationの変更は避け、新migrationを追加する。開発時は `bootRun` によるCompose起動・Flyway適用・application起動を接続する。productionも原則startup時に適用する（D-230〜D-235）。
+Docker設定は[一つのCompose](../docker/compose.yaml)に集約する。PostgreSQL imageは[Catalog](../gradle/libs.versions.toml)と同じtagに揃える。開発DBはloopbackの動的portに公開し、PostgreSQL 18のvolumeは `/var/lib/postgresql` にmountする。
 
-jOOQはmigration済みの一時DBから `build/generated-src/jooq/` に生成し、compileJavaへ接続する。schemaごとのgenerated packageを分離し、generated sourceはcommitしない。Gradle inputs/outputsで不要な再生成を避け、一時DBは失敗時も後始末する。
+codegen／test／資料生成には用途別の一時DBとcredentialを使用する。DockerをDB testの必須実行条件とする。
 
-migrationは `src/main/resources/db/migration/feature/V1__create_feature.sql` から開始し、feature別directoryを標準再帰scanする。version番号はapplication全体で一意とする。共通historyは `public.flyway_schema_history`、feature schemaはSQLで作成する（D-581）。
+## migrationを追加する
 
-最小table `feature.feature` はapplicationが付与するUUIDの `id` と100文字以内の `name` を持つ。NOT NULL・PK・ASCII spaceだけの名前を拒否するcheckをDBで保証する。sample dataは登録しない。
+1. `src/main/resources/db/migration/<feature>/V<番号>__<説明>.sql` を追加する。番号は全featureで一意にする。
+2. schema、table、constraint、必要なindex、table／columnのCOMMENTをSQLに記載する。
+3. `./gradlew jooqCodegen` で生成型を更新し、infrastructureのSQLを実装する。
+4. `./gradlew build databaseDocumentation` で空DBからのmigration、制約、SQL型、資料を確認する。
 
-`src/codegen/java/` の小さな実行classをGradle JavaExecから呼び、Testcontainers → Flyway → jOOQ GenerationToolを実行する。generated packageは `dev.template.application.jooq.feature`。jOOQ標準命名によりtable参照は `Feature.FEATURE_` となる。generated codeは手書きコード用Checkstyle / SpotBugsの対象外とする。
+Flywayはfeature directoryを標準再帰scanする。共通履歴は `public.flyway_schema_history`。適用済みmigrationは履歴として保持し、変更は新migrationとする。productionも原則起動時適用、運用要件により事前migrationを選べる。
 
-Flyway / jOOQ / JDBC driver / TestcontainersはapplicationとcodegenでBoot BOMに揃える。変更のないcodegenはUP-TO-DATEとなり、一時DBを起動しない。compileからも同じtaskを呼ぶ。
+最小業務schemaは [V1](../src/main/resources/db/migration/feature/V1__create_feature.sql) のfeature.feature。UUIDのidとvarchar(100)のnameを持ち、NOT NULL／PK／ASCII spaceだけの値を拒否するCHECKを定義する。nameはcode point単位で検証し、同名を許容する。初期状態は空tableとし、列はidとnameで構成する。
 
-Integration TestはServiceConnectionで別containerへ接続し、Composeを無効化する。Dockerが使えない場合はskipせず失敗する。testはtransaction rollbackで隔離し、migrationの再適用不要・COMMENT・generated typeによる読み書き・DB境界値を検証する。
+起動に必要な最小system／sample dataはFlywayで登録できる。商品・顧客等の大量・高頻度master更新は案件の業務機能として設計する。
 
-## DB documentation
+## jOOQ生成
 
-SQL文字列を独自parseせず、実際にmigrationしたPostgreSQLをtblsで参照する。table/columnの説明はPostgreSQL COMMENTから取得する。設定は `.tbls.yml`、ERはSVGを優先する（D-270〜D-276）。
+`codegen` subprojectのJooqCodegenをJavaExecで呼ぶ。Boot BOMでFlyway／jOOQ／driver／Testcontainersを揃え、一時DBに適用されたschemaを標準GenerationToolへ渡す。
 
-出力は `build/documentation/database/`、手書き補足は `docs/database/notes/`。生成ファイルは手編集しない。生成物はGit管理せず、`docs/database/generated/` は使用しない（D-631）。
+| 対象 | 配置・規則 |
+|---|---|
+| 生成source | build/generated-src/jooq |
+| 生成package | dev.template.application.jooq.<schema> |
+| 生成対象 | migration適用後の業務schema。information_schema、pg_*、public、systemのobjectは除外 |
+| table参照 | jOOQ標準命名によるFeature.FEATURE_ |
+| 使用範囲 | 各featureのinternal.infrastructure |
+| module宣言 | src/main/java配下のjooq/package-info.java |
 
-`./gradlew databaseDocumentation` を `documentation` に集約する。一意のCompose projectとtmpfsを使用し、成功・失敗時とも一時DBを削除する。固定tool versionはD-630を参照する。project PDF用のMermaid CLI・Pandoc・LuaLaTeX・日本語環境はtblsとともに `docker/docs/Dockerfile` に可能な限り集約する。
-
-## 実装前に確定する事項
-
-- 案件でevent publicationが必要になった場合のModulith metadata配置。
-
-
-これらは公式仕様を確認したうえで、先に `decisions.md` の対象Decisionへ反映する。認証方式、audit actor、cross-feature FK、pool tuning等の案件依存事項は一括して固定しない。
-
-Phase 3ではschemaを変更せず、上記tableへの作成とID取得をpublic APIから接続した。名前の長さはPostgreSQLと同じUnicode code point数で検証する。UTF-16のcode unit数とは異なるため、adapterの長さ制限もこの契約に揃える。transaction rollbackとread-onlyはDB統合テストで検証済み。
+compileJavaは同じ生成taskへ依存する。migration・生成tool・image等の入力と出力が変わらなければUP-TO-DATEとなる。generated sourceの変更は再生成によって行い、Git管理外とする。生成型は配布JAR、生成toolと専用依存はcodegen subprojectの実行環境に配置する。
 
 ## Spring Batch metadata
 
-Phase 6の `system/V2__create_batch_metadata.sql` はSpring Batch 6.0.5公式PostgreSQL schemaを基にする。6 tableと3 sequenceをsystem schemaへ作成する。framework互換性のため、数値ID・timestamp・nullable column等は公式仕様を維持し、業務tableのUUID / Instant規約を機械的に適用しない。constraint名はrepository規約に合わせている。
+[system/V2__create_batch_metadata.sql](../src/main/resources/db/migration/system/V2__create_batch_metadata.sql)はSpring Batch 6.0.5の公式PostgreSQL DDLに基づく6 table・3 sequenceを作成する。数値ID、timestamp、nullable等はframework仕様に準拠する。constraint名はrepository規約に揃える。
 
-Bootの `spring.batch.jdbc.table-prefix=system.BATCH_` と `initialize-schema=never` により、初期化をFlywayへ一本化する。jOOQ生成対象はfeature schemaだけを維持する。Batch version更新時は公式schema差分を確認し、変更が必要なら新migrationを追加する。
+`spring.batch.jdbc.table-prefix=system.BATCH_`、`initialize-schema=never` とし、初期化をFlywayへ集約する。Batch更新時は公式DDLとの差分を確認し、必要なら新migrationを追加する。system schemaはjOOQの生成対象外とする。
 
-Job instance・execution・step履歴はPostgreSQLに保存する。Integration Testで正常終了、完了済みinstanceの重複実行拒否、失敗から同じinstanceへの再実行を検証する。JobParameters / execution contextへcredentialや不要なPIIを保存しない（D-623）。
+JobParameters／ExecutionContextの保存内容は、処理の識別・再実行に必要な非機密情報に限定する。Jobの組み立て方は[運用ガイド](operations.md#batch)を参照する。
+
+## DB資料
+
+`./gradlew databaseDocumentation` でMarkdownとER SVGをbuild/documentation/databaseへ生成する。構造はmigration適用後のDBから取得する。COMMENTの修正はmigration、手書きの補足は本書、判断理由はADRへ置く。生成物の変更はsourceを修正して再生成する。詳細は[資料生成](documentation.md)を参照する。
+
+業務schemaを追加した場合、jOOQとtblsへのschema名の列挙は不要。生成型はschema別packageとなり、既存schemaの型名・配置を変えずに追加できる。新しいtechnical schemaを導入する場合は生成対象・資料公開範囲を判断し、必要なら除外設定を更新する。
