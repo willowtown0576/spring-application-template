@@ -13,6 +13,7 @@ public enum SystemActor implements Principal {
     /** 参照専用のScheduler主体。 */
     SCHEDULER(List.of(FeatureAuthority.READ));
 
+    /** このシステム主体に許可された不変の権限一覧。 */
     private final List<GrantedAuthority> authorities;
 
     /**
@@ -23,17 +24,17 @@ public enum SystemActor implements Principal {
         this.authorities = List.copyOf(authorities);
     }
 
+    /** {@inheritDoc} */
+    @Override
+    public String getName() {
+        return "system:" + name().toLowerCase(Locale.ROOT);
+    }
+
     /**
      * 不変の権限一覧を取得する。
      * @return この主体に許可された操作
      */
     List<GrantedAuthority> authorities() {
         return authorities;
-    }
-
-    /** {@inheritDoc} */
-    @Override
-    public String getName() {
-        return "system:" + name().toLowerCase(Locale.ROOT);
     }
 }

@@ -15,6 +15,7 @@ import org.springframework.stereotype.Component;
 @Component
 @Order(Ordered.LOWEST_PRECEDENCE - 1)
 class OperationLogging {
+    /** Command／Queryの処理結果・所要時間と障害情報の出力先。 */
     private static final Logger LOG = LoggerFactory.getLogger(OperationLogging.class);
 
     /**

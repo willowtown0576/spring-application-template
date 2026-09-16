@@ -24,10 +24,12 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
     "server.servlet.context-path=/app", "springdoc.api-docs.enabled=true", "springdoc.swagger-ui.enabled=true",
     "starter.security.user.operations-read=true"})
 class SwaggerUiIntegrationTest {
+    /** Springの接続先として共有する、このtest class専用のPostgreSQL。 */
     @Container
     @ServiceConnection
     static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer(System.getProperty("test.postgres.image"));
 
+    /** 実ブラウザーから接続するtest用HTTP serverの動的port。 */
     private final int port;
 
     /**

@@ -31,6 +31,9 @@ tasks.named<BootRun>("bootRun") {
                 }
             }
         }
+        if (!environment.containsKey("STARTER_SECURITY_LOCAL_ENABLED")) {
+            environment("STARTER_SECURITY_LOCAL_ENABLED", "true")
+        }
     }
 }
 
@@ -169,10 +172,15 @@ val architectureTestTask = tasks.register<Test>("architectureTest") {
 
 spotless {
     java {
-        target("src/main/java/**/*.java", "src/test/java/**/*.java", "codegen/src/main/java/**/*.java")
+        target("src/main/java/**/*.java", "src/test/java/**/*.java", "codegen/src/main/java/**/*.java", "codegen/src/test/java/**/*.java")
         importOrder("#", "")
         removeUnusedImports()
         eclipse(libs.versions.eclipse.jdt.get()).configFile("config/formatter/eclipse-java.xml")
+            .sortMembersEnabled(true)
+            .sortMembersOrder("SF,SI,F,I,C,SM,M,T")
+            .sortMembersDoNotSortFields(false)
+            .sortMembersVisibilityOrderEnabled(true)
+            .sortMembersVisibilityOrder("B,R,D,V")
     }
     format("misc") {
         target("*.md", "docs/**/*.md", "*.gradle.kts", "codegen/*.gradle.kts", "gradle.properties", "gradle/*.toml",

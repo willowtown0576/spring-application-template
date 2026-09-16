@@ -10,6 +10,7 @@ import org.springframework.stereotype.Repository;
 /** jOOQによる書き込みadapter。所有するfeature schemaだけを更新する。 */
 @Repository
 class JooqFeatureRepository implements FeatureRepository {
+    /** Springのtransactionに参加するSQL実行context。 */
     private final DSLContext sql;
 
     /**

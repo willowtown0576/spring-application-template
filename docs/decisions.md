@@ -39,6 +39,8 @@
 | [ADR-023](#adr-023) | 資料の正本統合と関係に集中したER図 |
 | [ADR-024](#adr-024) | PDF資料生成を標準機能から除外する |
 | [ADR-025](#adr-025) | Gradleコマンドの責務を分離する |
+| [ADR-026](#adr-026) | 開発用認証と案件の認証を分離する |
+| [ADR-027](#adr-027) | メンバー順の自動整列とフィールドJavaDoc |
 
 <a id="adr-001"></a>
 ## ADR-001: 完成した技術基盤と依存方針
@@ -281,7 +283,7 @@ Schedulingは@EnableSchedulingと標準scheduler、単純定期処理は@Schedul
 <a id="adr-014"></a>
 ## ADR-014: テストとコード品質
 
-**状態:** Accepted。taskの責務は[ADR-025](#adr-025)で更新。
+**状態:** Accepted。taskの責務は[ADR-025](#adr-025)、member順とフィールドJavaDocは[ADR-027](#adr-027)で更新。
 
 **背景:** 少人数で継続的に品質を保つには、意味のある自動検査と読みやすいコードが必要である。
 
@@ -349,7 +351,7 @@ AIはREADME、AGENTS、ADRと対象領域の資料・実装を読み、既存変
 <a id="adr-018"></a>
 ## ADR-018: デフォルト認証と利用者・システム実行主体
 
-**状態:** Accepted
+**状態:** Accepted。開発用利用者の有効化・置換条件は[ADR-026](#adr-026)で更新。
 
 **背景:** Web、Batch、Schedulerから同じ公開Command／Queryを安全に呼ぶため、認証と実行主体を標準で用意する必要がある。
 
@@ -392,7 +394,7 @@ Webはsession認証、保護UIはloginへ誘導する。REST／Actuator／API資
 <a id="adr-021"></a>
 ## ADR-021: 標準認証の差し替えと境界の検証
 
-**状態:** Accepted
+**状態:** Accepted。開発用利用者の有効化・置換条件は[ADR-026](#adr-026)で更新。
 
 **背景:** 標準認証の置換条件はBootのauto-configurationで評価する必要がある。ブラウザーからのREST操作には実際のCSRF token受け渡しが必要であり、context path配下への配置も考慮する。認可・transactionの両方を書き忘れた実装や、非推奨宣言によるcompiler警告抑制も品質検査の対象とする。
 
@@ -461,3 +463,37 @@ Gradle Java pluginが提供するtestはTest型のまま集約に使い、直接
 releaseArtifactsはJAR・資料の生成と収集を担当する。CIとreleaseはbuildを明示的に実行する。apiDocumentation内の検査は生成資料の契約検証として資料生成と一体にし、資料出力の責務をapiDocumentationへ集約する。
 
 **影響:** checkでも解析・配布境界に必要なcompileとjOOQ生成、JAR作成は実行する。test実行とは区別する。個別testのreportと集約coverageはbuild/reportsへ出力し、buildとreleaseの品質保証は維持する。
+
+<a id="adr-026"></a>
+## ADR-026: 開発用認証と案件の認証を分離する
+
+**状態:** Accepted。ADR-018／021の設定利用者の適用範囲と置換条件を更新する。
+
+**背景:** 環境変数から作成する1利用者を通常起動でも有効にすると、開発用credentialや共有利用者が本番に残り得る。開発の起動手順を維持し、配布先では案件の認証方式を明示する必要がある。
+
+**決定:** LocalAuthenticationConfigurationは`starter.security.local.enabled=true`の場合だけ有効にし、既定は無効とする。bootRunは`STARTER_SECURITY_LOCAL_ENABLED`の未設定時にtrueを補完する。IDEから直接起動する場合も開発環境で明示設定する。本番はfalseを維持し、APP_USER_*を使用しない。APP_USER_*だけでは開発利用者を作成しない。
+
+案件側の通常ConfigurationでUserDetailsService、AuthenticationProvider、AuthenticationManagerのいずれかのBeanを定義すると、開発用認証とcredential検証はbackoffする。起動時にこれらのBeanが一つもなければ、認証設定が必要であることを示して起動を失敗させる。Bootの自動生成利用者は引き続き無効とする。この検査は認証の提供元の存在を確認するものであり、接続先の可用性やfilter chainへの組み込みは採用方式の統合testで検証する。
+
+本番のDB認証は案件のUserDetailsService等で実装する。OIDC等は採用時に依存・接続設定・実際に使用するAuthenticationProviderまたはAuthenticationManagerのBean・SecurityFilterChain・login／logoutを一組で構成する。標準フォーム認証と開発用credentialの検証、Authority、Method Security、CSRF、システム実行主体の契約は維持する。
+
+**影響:** 配布JAR／OCIは案件の認証実装と設定を必要とする。開発用認証の明示有効化、既定無効、credentialだけの設定、案件Beanによる置換、未設定の起動失敗、実ブラウザーのlogin／logoutを検証する。SSO接続と利用者管理DBは案件で方式を採用した際に実装する。
+
+参照: [Bootの条件付き自動構成](https://docs.spring.io/spring-boot/reference/features/developing-auto-configuration.html)、[Spring Securityの認証構成](https://docs.spring.io/spring-security/reference/servlet/authentication/architecture.html)。
+
+<a id="adr-027"></a>
+## ADR-027: メンバー順の自動整列とフィールドJavaDoc
+
+**状態:** Accepted。ADR-014のmember順保持とJavaDoc対象を更新する。
+
+**背景:** フィールドの配置と説明を統一し、整形・静的検査で継続的に維持する。
+
+**決定:** SpotlessのEclipse JDT Sort Membersを使用する。static field、static initializer、instance field、instance initializer、constructor、static method、instance method、nested typeの順とし、同じ分類ではpublic、protected、package、privateの順、同じ可視性では名前順に整列する。CheckstyleのDeclarationOrderでフィールド・constructor・methodの配置とフィールドの可視性順を検査し、名前順を含むformatterとの一致はspotlessCheckで検査する。
+
+手書きmain／test／codegenのフィールドとenum定数には、保持する値・依存先・用途を説明するJavaDocを付ける。JavadocVariableで全可視性を対象に必須検査する。serialVersionUIDは標準検査の除外対象、record componentは型の@paramで説明する。
+
+初期化に順序依存がある場合はconstructorまたはinitializerで代入順を明示する。Sort Membersはenum定数も整列するため、宣言順に意味のあるenumを含むfileでは理由を記した `@SortMembers:doNotSortFields=true` を使用し、フィールドを手動で規約順に配置する。この場合もDeclarationOrderとJavaDoc検査を適用する。
+
+**影響:** method・nested typeも標準ソーターの対象になる。ソート時は初期化の副作用・参照順、enumのvalues／ordinalと表示順をreviewし、既存の動作testを維持する。部品集のStatusは未着手・確認中・完了の表示順を保持するためfile単位のフィールドソート例外とする。
+
+参照: [Spotless Eclipse Sort Members](https://github.com/diffplug/spotless/blob/gradle/8.10.2/plugin-gradle/README.md#eclipse-jdt)、[DeclarationOrder](https://checkstyle.org/checks/coding/declarationorder.html)、[JavadocVariable](https://checkstyle.org/checks/javadoc/javadocvariable.html)。

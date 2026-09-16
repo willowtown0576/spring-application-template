@@ -13,6 +13,7 @@ public enum FeatureAuthority implements GrantedAuthority {
     /** Featureを作成できる。 */
     WRITE("feature:write");
 
+    /** 認証providerと交換する安定した権限名。 */
     private final String authority;
 
     /**

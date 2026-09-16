@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 /** Commandの認可・入力検証・トランザクション境界。業務調整はUseCaseに委譲する。 */
 @Service
 class FeatureCommandsImpl implements FeatureCommands {
+    /** 認可・transaction境界内でFeature作成を実行する調整役。 */
     private final CreateFeatureUseCase useCase;
 
     /**

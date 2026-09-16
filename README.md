@@ -15,7 +15,7 @@ Java 25／Spring Boot／Vaadin／PostgreSQLで、小規模〜中規模の業務�
 ./gradlew bootRun
 ```
 
-Windowsでは `gradlew.bat` を使う。起動すると開発PostgreSQLの起動、Flyway migration、application起動まで実行される。
+Windowsでは `gradlew.bat` を使う。bootRunは開発用認証を既定で有効にし、開発PostgreSQLの起動、Flyway migration、application起動まで実行する。配布JAR／OCIでは開発用認証は既定で無効となり、案件の認証実装・設定が必要。認証未設定なら起動を失敗させる。
 
 **[http://localhost:8080/](http://localhost:8080/)** にwelcome、**[/components](http://localhost:8080/components)** にVaadin部品集を表示する。匿名で一覧・入力・Dialog・明暗表示などを試せる。部品集の編集はView内のsample dataだけに反映する。
 

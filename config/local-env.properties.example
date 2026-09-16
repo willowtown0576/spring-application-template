@@ -4,7 +4,10 @@
 # Existing environment variables take precedence.
 DEV_DB_PASSWORD=
 
-# Login credentials: password >= 12 characters, <= 72 UTF-8 bytes.
+# Development-only login: bootRun enables local authentication by default.
+# Set false when using project authentication instead.
+# STARTER_SECURITY_LOCAL_ENABLED=false
+# Password >= 12 characters, <= 72 UTF-8 bytes.
 APP_USER_NAME=
 APP_USER_PASSWORD=
 
@@ -22,6 +25,7 @@ APP_USER_PASSWORD=
 # HTTP_READ_TIMEOUT=10s
 
 # This file is read only by bootRun. For deployed JAR/OCI applications,
-# supply APP_USER_* and SPRING_DATASOURCE_URL / SPRING_DATASOURCE_USERNAME /
-# SPRING_DATASOURCE_PASSWORD through the deployment environment.
+# implement project authentication and keep STARTER_SECURITY_LOCAL_ENABLED=false.
+# Supply its secrets and SPRING_DATASOURCE_URL / SPRING_DATASOURCE_USERNAME /
+# SPRING_DATASOURCE_PASSWORD through the deployment environment. APP_USER_* is not used.
 # See docs/operations.md. Gradle generates DOCS_DB_PASSWORD for the temporary documentation database.

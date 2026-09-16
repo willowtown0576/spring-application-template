@@ -25,10 +25,12 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 @SpringBootTest(classes = Application.class, properties = {"spring.docker.compose.enabled=false",
     "springdoc.api-docs.enabled=true", "springdoc.swagger-ui.enabled=true"})
 class FeatureApiDocumentationTest {
+    /** Springの接続先として共有する、このtest class専用のPostgreSQL。 */
     @Container
     @ServiceConnection
     static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer(System.getProperty("test.postgres.image"));
 
+    /** 実際のMVC構成とSecurity filterを通してHTTP契約を検証するclient。 */
     private final MockMvc mvc;
 
     /**

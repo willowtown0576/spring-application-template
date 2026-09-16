@@ -56,13 +56,16 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 @Tag("integration")
 @MockitoSpyBean(types = FeatureCommands.class)
 class FeatureUiIntegrationTest {
+    /** Springの接続先として共有する、このtest class専用のPostgreSQL。 */
     @Container
     @ServiceConnection
     static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer(System.getProperty("test.postgres.image"));
 
-    private final int port;
-
+    /** 認可・transaction境界を持つFeatureの公開更新API。 */
     private final FeatureCommands commands;
+
+    /** 実ブラウザーから接続するtest用HTTP serverの動的port。 */
+    private final int port;
 
     /**
      * 起動済みHTTP serverのportを受け取る。
@@ -74,6 +77,50 @@ class FeatureUiIntegrationTest {
     FeatureUiIntegrationTest(@LocalServerPort final int port, final FeatureCommands commands) {
         this.port = port;
         this.commands = commands;
+    }
+
+    /** 追加部品の入力制約・選択・メニュー・折りたたみを匿名ブラウザーで検証する。 */
+    @Test
+    void additionalComponentsValidateInputAndRespondToSelection() {
+        try (final Playwright playwright = Playwright.create();
+            final Browser browser = playwright.chromium().launch();
+            final BrowserContext context = browser.newContext()) {
+            final Page page = context.newPage();
+            page.navigate("http://127.0.0.1:" + port + "/components");
+
+            // 用途別fieldの制約を確認する。
+            page.getByText("数値・時刻", new Page.GetByTextOptions().setExact(true)).click();
+            page.locator("#example-email input").fill("invalid");
+            page.locator("#example-quantity input").fill("11");
+            page.locator("#example-email input").click();
+            assertThat(page.locator("#example-email")).hasAttribute("invalid", "");
+            assertThat(page.locator("#example-quantity")).hasAttribute("invalid", "");
+            page.locator("#example-email input").fill("sample@example.com");
+            page.locator("#example-quantity input").fill("2");
+            page.locator("#example-email input").click();
+            assertThat(page.locator("#example-quantity")).not().hasAttribute("invalid", "");
+            page.screenshot(new Page.ScreenshotOptions().setPath(Path.of("build/reports/ui/components-typed.png"))
+                .setFullPage(true));
+
+            // 選択結果の表示を確認する。
+            page.getByText("選択部品", new Page.GetByTextOptions().setExact(true)).click();
+            page.locator("#example-channels").getByText("モバイル", new Locator.GetByTextOptions().setExact(true)).click();
+            assertThat(page.locator("#example-selection-result")).hasText("確認対象: モバイル");
+            page.setViewportSize(390, 844);
+            page.screenshot(new Page.ScreenshotOptions()
+                .setPath(Path.of("build/reports/ui/components-selection-mobile.png")).setFullPage(true));
+
+            // 狭い画面でもメニューと補足情報を操作できることを確認する。
+            page.getByText("表示・メニュー", new Page.GetByTextOptions().setExact(true)).click();
+            page.getByText("ヘルプ", new Page.GetByTextOptions().setExact(true)).click();
+            assertThat(page.locator("#example-menu-result")).hasText("メニュー項目はクリックやキーボードで選べます。");
+            page.getByText("データの保存について", new Page.GetByTextOptions().setExact(true)).click();
+            assertThat(
+                page.getByText("入力内容はDBに保存されません。画面を再読み込みすると初期化されます。", new Page.GetByTextOptions().setExact(true)))
+                .isVisible();
+            page.screenshot(new Page.ScreenshotOptions()
+                .setPath(Path.of("build/reports/ui/components-display-mobile.png")).setFullPage(true));
+        }
     }
 
     /**
@@ -197,47 +244,47 @@ class FeatureUiIntegrationTest {
         }
     }
 
-    /** 追加部品の入力制約・選択・メニュー・折りたたみを匿名ブラウザーで検証する。 */
+    /** 実フォームで失敗・成功・DB操作・logoutを検証し、認証情報が失効することを確認する。 */
     @Test
-    void additionalComponentsValidateInputAndRespondToSelection() {
-        try (final Playwright playwright = Playwright.create();
-            final Browser browser = playwright.chromium().launch();
-            final BrowserContext context = browser.newContext()) {
+    void formLoginAndLogoutProtectBusinessOperations() {
+        try (Playwright playwright = Playwright.create();
+            Browser browser = playwright.chromium().launch();
+            BrowserContext context = browser.newContext()) {
+            final String base = "http://127.0.0.1:" + port;
             final Page page = context.newPage();
-            page.navigate("http://127.0.0.1:" + port + "/components");
+            page.navigate(base + "/features");
+            assertThat(page).hasURL(base + "/login");
+            page.locator("input[name=username]").fill("test-user");
+            page.locator("input[name=password]").fill("wrong-password");
+            page.locator("vaadin-button[theme~=submit]").click();
+            assertThat(page.locator("vaadin-login-form")).hasAttribute("error", "");
+            page.locator("input[name=username]").fill("test-user");
+            page.locator("input[name=password]").fill("test-password-12345");
+            page.locator("vaadin-button[theme~=submit]").click();
 
-            // 用途別fieldの制約を確認する。
-            page.getByText("数値・時刻", new Page.GetByTextOptions().setExact(true)).click();
-            page.locator("#example-email input").fill("invalid");
-            page.locator("#example-quantity input").fill("11");
-            page.locator("#example-email input").click();
-            assertThat(page.locator("#example-email")).hasAttribute("invalid", "");
-            assertThat(page.locator("#example-quantity")).hasAttribute("invalid", "");
-            page.locator("#example-email input").fill("sample@example.com");
-            page.locator("#example-quantity input").fill("2");
-            page.locator("#example-email input").click();
-            assertThat(page.locator("#example-quantity")).not().hasAttribute("invalid", "");
-            page.screenshot(new Page.ScreenshotOptions().setPath(Path.of("build/reports/ui/components-typed.png"))
-                .setFullPage(true));
+            // 成功したsessionで実際のDB操作を行う。
+            page.waitForURL(Pattern.compile(Pattern.quote(base) + "/(?!login).*"));
+            page.navigate(base + "/features");
+            assertThat(page.locator("#feature-name input")).isVisible();
+            page.locator("#feature-name input").fill("authenticated-user");
+            page.locator("#feature-create").click();
+            assertThat(page.locator("#feature-result")).hasText("作成しました。");
+            page.screenshot(
+                new Page.ScreenshotOptions().setPath(Path.of("build/reports/ui/authenticated-feature.png")));
+            page.navigate(base + "/");
 
-            // 選択結果の表示を確認する。
-            page.getByText("選択部品", new Page.GetByTextOptions().setExact(true)).click();
-            page.locator("#example-channels").getByText("モバイル", new Locator.GetByTextOptions().setExact(true)).click();
-            assertThat(page.locator("#example-selection-result")).hasText("確認対象: モバイル");
+            // logout後は同じbrowserでも認証を要求する。
+            page.locator("#starter-account").click();
+            assertThat(page.locator("#starter-account")).hasText("ログイン");
+            assertThat(context.request().get(base + "/api/v1/features/0199417c-0000-7000-8000-000000000099").status())
+                .isEqualTo(401);
+            page.navigate(base + "/login");
+            assertThat(page.locator("input[name=username]")).isVisible();
+            page.screenshot(new Page.ScreenshotOptions().setPath(Path.of("build/reports/ui/login.png")));
             page.setViewportSize(390, 844);
-            page.screenshot(new Page.ScreenshotOptions()
-                .setPath(Path.of("build/reports/ui/components-selection-mobile.png")).setFullPage(true));
-
-            // 狭い画面でもメニューと補足情報を操作できることを確認する。
-            page.getByText("表示・メニュー", new Page.GetByTextOptions().setExact(true)).click();
-            page.getByText("ヘルプ", new Page.GetByTextOptions().setExact(true)).click();
-            assertThat(page.locator("#example-menu-result")).hasText("メニュー項目はクリックやキーボードで選べます。");
-            page.getByText("データの保存について", new Page.GetByTextOptions().setExact(true)).click();
-            assertThat(
-                page.getByText("入力内容はDBに保存されません。画面を再読み込みすると初期化されます。", new Page.GetByTextOptions().setExact(true)))
-                .isVisible();
-            page.screenshot(new Page.ScreenshotOptions()
-                .setPath(Path.of("build/reports/ui/components-display-mobile.png")).setFullPage(true));
+            assertThat(page.locator("input[name=username]")).isVisible();
+            assertThat((Boolean) page.evaluate("document.documentElement.scrollWidth > window.innerWidth")).isFalse();
+            page.screenshot(new Page.ScreenshotOptions().setPath(Path.of("build/reports/ui/login-mobile.png")));
         }
     }
 
@@ -357,50 +404,6 @@ class FeatureUiIntegrationTest {
             page.navigate(base + "/");
             assertThat(page.locator("link[href='aura/aura.css']")).hasCount(1);
             assertThat(page.locator("link[href='lumo/lumo.css']")).hasCount(0);
-        }
-    }
-
-    /** 実フォームで失敗・成功・DB操作・logoutを検証し、認証情報が失効することを確認する。 */
-    @Test
-    void formLoginAndLogoutProtectBusinessOperations() {
-        try (Playwright playwright = Playwright.create();
-            Browser browser = playwright.chromium().launch();
-            BrowserContext context = browser.newContext()) {
-            final String base = "http://127.0.0.1:" + port;
-            final Page page = context.newPage();
-            page.navigate(base + "/features");
-            assertThat(page).hasURL(base + "/login");
-            page.locator("input[name=username]").fill("test-user");
-            page.locator("input[name=password]").fill("wrong-password");
-            page.locator("vaadin-button[theme~=submit]").click();
-            assertThat(page.locator("vaadin-login-form")).hasAttribute("error", "");
-            page.locator("input[name=username]").fill("test-user");
-            page.locator("input[name=password]").fill("test-password-12345");
-            page.locator("vaadin-button[theme~=submit]").click();
-
-            // 成功したsessionで実際のDB操作を行う。
-            page.waitForURL(Pattern.compile(Pattern.quote(base) + "/(?!login).*"));
-            page.navigate(base + "/features");
-            assertThat(page.locator("#feature-name input")).isVisible();
-            page.locator("#feature-name input").fill("authenticated-user");
-            page.locator("#feature-create").click();
-            assertThat(page.locator("#feature-result")).hasText("作成しました。");
-            page.screenshot(
-                new Page.ScreenshotOptions().setPath(Path.of("build/reports/ui/authenticated-feature.png")));
-            page.navigate(base + "/");
-
-            // logout後は同じbrowserでも認証を要求する。
-            page.locator("#starter-account").click();
-            assertThat(page.locator("#starter-account")).hasText("ログイン");
-            assertThat(context.request().get(base + "/api/v1/features/0199417c-0000-7000-8000-000000000099").status())
-                .isEqualTo(401);
-            page.navigate(base + "/login");
-            assertThat(page.locator("input[name=username]")).isVisible();
-            page.screenshot(new Page.ScreenshotOptions().setPath(Path.of("build/reports/ui/login.png")));
-            page.setViewportSize(390, 844);
-            assertThat(page.locator("input[name=username]")).isVisible();
-            assertThat((Boolean) page.evaluate("document.documentElement.scrollWidth > window.innerWidth")).isFalse();
-            page.screenshot(new Page.ScreenshotOptions().setPath(Path.of("build/reports/ui/login-mobile.png")));
         }
     }
 

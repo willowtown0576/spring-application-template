@@ -52,6 +52,8 @@ springdoc:
 
 starter:
   security:
+    local:
+      enabled: false
     user:
       name: ${APP_USER_NAME:}
       password: ${APP_USER_PASSWORD:}

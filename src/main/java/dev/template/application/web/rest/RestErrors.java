@@ -14,6 +14,7 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 /** MVCエラーをProblemDetailへ統一する。Security例外はfilter側の401/403判定に委譲する。 */
 @RestControllerAdvice
 class RestErrors extends ResponseEntityExceptionHandler {
+    /** 予期しないREST障害の秘匿処理済み診断情報の出力先。 */
     private static final Logger LOG = LoggerFactory.getLogger(RestErrors.class);
 
     /**

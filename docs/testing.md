@@ -34,8 +34,8 @@ unitTestでもcompileに必要なjOOQ型がなければcodegenを実行するた
 | 検査 | 対象・確認内容 |
 |---|---|
 | Java compiler | main／test／codegenの非推奨・削除予定API参照を警告からcompileエラーにする |
-| Spotless | 手書きJava、Markdown、設定。Eclipse JDT format、import整理 |
-| Checkstyle | 手書きmain／test／codegen。unused import、JavaDoc、final、非推奨警告の抑制・Deprecated宣言の禁止等 |
+| Spotless | 手書きJava、Markdown、設定。Eclipse JDT format、import整理、memberの分類・可視性・名前順の整列 |
+| Checkstyle | 手書きmain／test／codegen。unused import、型・method・フィールド・enum定数のJavaDoc、DeclarationOrderによる配置・可視性順、final、非推奨警告の抑制・Deprecated宣言の禁止等 |
 | SpotBugs | 手書きmain／test／codegen。generated型は解析classpathに保持 |
 | unit／integration | 契約、境界値、実DB、認可、HTTP、UI |
 | architecture | Modulith公開境界・cycle、domain依存、transaction位置、jOOQ参照範囲 |
@@ -57,7 +57,9 @@ unitTestでもcompileに必要なjOOQ型がなければcodegenを実行するた
 | REST成功、入力、認可、CSRF、500 | DatabaseIntegrationTest。直接Command／Query呼び出しの認可も確認 |
 | 設定利用者・session認証・logout、Actuator保護、pool metrics | DatabaseIntegrationTest |
 | BatchのCommand呼び出し、SchedulerのQuery／更新拒否、実行IDごとのmetadata | DatabaseIntegrationTest |
-| system contextの復元・nested実行、利用者設定検証 | SystemExecutionTest、LocalAuthenticationConfigurationTest |
+| system contextの復元・nested実行 | SystemExecutionTest |
+| 開発用認証の明示有効化・既定無効、credential検証、認証未設定の起動失敗・案件Bean優先 | LocalAuthenticationConfigurationTest |
+| 開発用認証無効時の案件storeによるlogin、開発credential拒否、権限不足・logout | ProjectAuthenticationIntegrationTest |
 | HTTP timeout設定、相関ID、非retry | HttpTimeoutConfigurationIntegrationTest、HttpClientLoggingIntegrationTest |
 | payload・例外messageのログ秘匿 | CorrelationFilterTest、HTTP／DB integration tests |
 | 公開welcome／gallery、Aura／Lumo分離と操作、保護UI、DB操作、明暗・mobile | FeatureUiIntegrationTest |

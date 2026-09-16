@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Configuration;
 /** Vaadin session共通の予期しないエラー処理を設定する。利用者向けのエラー表示と内部診断情報を分離する。 */
 @Configuration(proxyBeanMethods = false)
 class UiErrorConfiguration {
+    /** 予期しないUI障害の秘匿処理済み診断情報の出力先。 */
     private static final Logger LOG = LoggerFactory.getLogger(UiErrorConfiguration.class);
 
     /**

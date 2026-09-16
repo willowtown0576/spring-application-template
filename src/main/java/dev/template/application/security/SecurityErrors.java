@@ -18,6 +18,7 @@ import tools.jackson.databind.json.JsonMapper;
 /** Security filter内の未認証・認可拒否を、本文に内部情報を含まないProblemDetailへ変換する。 */
 @Component
 class SecurityErrors implements AuthenticationEntryPoint, AccessDeniedHandler {
+    /** SecurityのProblemDetailをJSONへ変換するBoot管理のmapper。 */
     private final JsonMapper mapper;
 
     /**

@@ -30,7 +30,9 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 @RestController
 @RequestMapping(path = "/api/{version}/features", version = "v1")
 class FeatureController {
+    /** 認可・transaction境界を持つFeatureの公開更新API。 */
     private final FeatureCommands commands;
+    /** 認可・read-only transaction境界を持つFeatureの公開参照API。 */
     private final FeatureQueries queries;
 
     /**
@@ -80,19 +82,19 @@ class FeatureController {
     }
 
     /**
+     * HTTP作成応答。
+     *
+     * @param id 作成したFeatureの識別子
+     */
+    record CreatedFeature(UUID id) {
+    }
+
+    /**
      * HTTP入力モデル。業務名の厳密な制約はCommand/domainで検証する。
      *
      * @param name 入力された名前
      */
     record CreateRequest(
         @NotNull @Schema(minLength = 1, maxLength = 100, description = "Unicode code points; blank, NUL and malformed surrogates are rejected") String name) {
-    }
-
-    /**
-     * HTTP作成応答。
-     *
-     * @param id 作成したFeatureの識別子
-     */
-    record CreatedFeature(UUID id) {
     }
 }

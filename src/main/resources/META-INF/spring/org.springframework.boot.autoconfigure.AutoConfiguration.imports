@@ -1,1 +1,2 @@
 dev.template.application.security.LocalAuthenticationConfiguration
+dev.template.application.security.AuthenticationConfiguration

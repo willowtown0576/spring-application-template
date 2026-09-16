@@ -9,9 +9,12 @@ import java.util.ArrayList;
 import java.util.List;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -19,9 +22,10 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.validation.annotation.Validated;
 
-/** 明示設定された利用者を標準フォーム認証へ提供する。外部UserDetailsServiceで置換できる。 */
+/** 明示的に有効化された開発環境の利用者をフォーム認証へ提供する。案件の認証Beanを優先する。 */
 @AutoConfiguration
-@ConditionalOnMissingBean(UserDetailsService.class)
+@ConditionalOnProperty(prefix = "starter.security.local", name = "enabled", havingValue = "true")
+@ConditionalOnMissingBean({UserDetailsService.class, AuthenticationProvider.class, AuthenticationManager.class})
 @EnableConfigurationProperties(LocalAuthenticationConfiguration.UserSettings.class)
 class LocalAuthenticationConfiguration {
     /**
@@ -42,7 +46,7 @@ class LocalAuthenticationConfiguration {
     }
 
     /**
-     * 初期利用者の必須設定。ログ表現ではpasswordを秘匿する。
+     * 開発用認証を使用する場合の必須設定。ログ表現ではpasswordを秘匿する。
      * @param name ログインID
      * @param password 起動時にencodeするpassword
      * @param operationsRead 運用情報の参照許可

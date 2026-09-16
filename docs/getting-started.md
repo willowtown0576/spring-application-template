@@ -21,7 +21,7 @@ Windowsでは `gradlew.bat` を使う。IDEではGradle projectとしてimport�
 
 local fileはUTF-8 Java Properties形式。値はJava Propertiesのliteralとして記述する。literal backslashは `\\` と記載する。HTTP timeout等も環境変数名で追記できる。
 
-既存環境変数がlocal fileより優先される。fileは任意で、環境変数だけでも起動できる。読み込みはbootRunの子プロセスへの環境変数注入に限定する。secretの管理先はGit管理外のローカル設定または実行環境のsecret管理基盤とする。
+既存環境変数がlocal fileより優先される。fileは任意で、環境変数だけでも起動できる。読み込みはbootRunの子プロセスへの環境変数注入に限定する。bootRunはSTARTER_SECURITY_LOCAL_ENABLEDの未設定時にtrueを補完し、開発用認証を有効にする。案件の認証を使って開発する場合はfalseを指定する。IDEから直接起動する場合は、この環境変数を開発用実行設定でtrueにする。secretの管理先はGit管理外のローカル設定または実行環境のsecret管理基盤とする。
 
 起動時はComposeのdev PostgreSQLを起動し、Bootがloopbackの動的portを検出する。Flyway migration後にapplicationが8080で待ち受ける。停止はbootRunの端末でCtrl+C。DB containerも停止し、named volumeのdataは残る。
 
@@ -63,7 +63,8 @@ Swagger UIを使用する場合、local fileの `API_DOCUMENTATION_ENABLED=true`
 | Docker接続失敗 | Dockerの起動、利用context、権限、image取得のnetwork |
 | 8080が使用中 | 同じprojectの起動が残っていないか確認。別portが必要ならSERVER_PORTを設定 |
 | RESTが401 | /loginで設定した利用者としてログインし、同じsessionで呼ぶ |
-| 利用者設定のvalidation失敗 | APP_USER_NAME、APP_USER_PASSWORDの設定と長さを確認 |
+| 利用者設定のvalidation失敗 | 開発用認証のAPP_USER_NAME、APP_USER_PASSWORDの設定と長さを確認 |
+| Authentication is not configured | 開発はbootRunを使用するか開発用認証を明示有効化。本番は案件の認証Beanとログイン経路を実装・設定する |
 | 認証済みPOSTが403 | feature:writeとCSRF tokenの両方を確認 |
 | 統合テストのbrowser起動失敗 | Playwrightのdownload、Linux共有library、network／disk容量 |
 

@@ -10,8 +10,10 @@ import org.springframework.stereotype.Service;
 /** 作成処理の調整役。呼び出し元のトランザクション内でRepositoryを使う。 */
 @Service
 public final class CreateFeatureUseCase {
-    private final FeatureRepository repository;
+    /** 新規Featureへ割り当てるUUID v7の供給元。 */
     private final Supplier<UUID> ids;
+    /** Featureを永続化する書き込みPort。 */
+    private final FeatureRepository repository;
 
     /**
      * 必要なPortとID生成関数を受け取る。テストではどちらも差し替えられる。

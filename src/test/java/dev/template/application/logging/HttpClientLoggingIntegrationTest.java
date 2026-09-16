@@ -108,12 +108,6 @@ class HttpClientLoggingIntegrationTest {
         }
     }
 
-    /** Boot標準HTTP Service Groupへテストclientを登録する。 */
-    @TestConfiguration(proxyBeanMethods = false)
-    @ImportHttpServices(group = "test", types = Client.class)
-    static class Clients {
-    }
-
     /** テストサーバーの成功・遅延・障害を呼び分けるHTTP契約。 */
     interface Client {
         /**
@@ -125,19 +119,25 @@ class HttpClientLoggingIntegrationTest {
         String echo();
 
         /**
-         * 応答遅延によるtimeoutを確認する。
-         *
-         * @return サーバーの応答本文
-         */
-        @GetExchange("/slow")
-        String slow();
-
-        /**
          * 更新の失敗が自動retryされないことを確認する。
          *
          * @return サーバーの応答本文
          */
         @PostExchange("/failure")
         String failure();
+
+        /**
+         * 応答遅延によるtimeoutを確認する。
+         *
+         * @return サーバーの応答本文
+         */
+        @GetExchange("/slow")
+        String slow();
+    }
+
+    /** Boot標準HTTP Service Groupへテストclientを登録する。 */
+    @TestConfiguration(proxyBeanMethods = false)
+    @ImportHttpServices(group = "test", types = Client.class)
+    static class Clients {
     }
 }

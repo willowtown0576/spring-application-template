@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 /** Queryの認可とread-onlyトランザクション境界。SQLに適した参照結果を返す。 */
 @Service
 class FeatureQueriesImpl implements FeatureQueries {
+    /** Featureの内部参照データを取得する読み取りPort。 */
     private final FeatureDataSource source;
 
     /**

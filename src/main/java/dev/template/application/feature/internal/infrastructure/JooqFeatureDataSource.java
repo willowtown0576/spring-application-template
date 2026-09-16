@@ -11,6 +11,7 @@ import org.springframework.stereotype.Repository;
 /** jOOQによる読み取りadapter。必要な列だけ選び内部参照データへ写す。 */
 @Repository
 class JooqFeatureDataSource implements FeatureDataSource {
+    /** Springのtransactionに参加するSQL実行context。 */
     private final DSLContext sql;
 
     /**

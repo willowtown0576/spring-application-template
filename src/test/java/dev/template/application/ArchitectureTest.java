@@ -19,66 +19,14 @@ import org.springframework.transaction.annotation.Transactional;
 /** Modulithを正本としてmodule境界を検証し、追加の技術依存規則だけArchUnitで補う。 */
 @Tag("architecture")
 class ArchitectureTest {
+    /** 依存方向と認可・transaction境界を検査するproduction class群。 */
+    private static final JavaClasses CLASSES;
+    /** architecture検査からtest classを除外するimport条件。 */
     private static final ImportOption PRODUCTION = ImportOption.Predefined.DO_NOT_INCLUDE_TESTS;
-    private static final JavaClasses CLASSES = new ClassFileImporter().withImportOption(PRODUCTION)
-        .importPackages(Application.class.getPackageName());
 
-    /** production classをModulithで解析し、循環依存がなく公開APIだけがmodule外へ公開されることを検証する。 */
-    @Test
-    void verifiesModuleBoundariesAndPublicInterfaces() {
-        ApplicationModules.of(Application.class, PRODUCTION).verify();
-
-    }
-
-    /** domainとUseCaseを解析し、SQL・Web・Security等の実装型へ依存していないことを検証する。 */
-    @Test
-    void domainAndUseCasesAreIndependentOfFrameworks() {
-        noClasses().that().resideInAnyPackage("..internal.domain..", "..internal.usecase..").should()
-            .dependOnClassesThat().resideInAnyPackage("org.jooq..", "com.vaadin..", "jakarta..", "com.github.f4b6a3..",
-                Application.class.getPackageName() + ".jooq..")
-            .check(CLASSES);
-    }
-
-    /** domainはSpring非依存、UseCaseはService登録annotation以外のSpring型へ非依存であることを検証する。 */
-    @Test
-    void domainAndUseCasesRestrictSpringDependencies() {
-        noClasses().that().resideInAPackage("..internal.domain..").should().dependOnClassesThat()
-            .resideInAPackage("org.springframework..").check(CLASSES);
-        noClasses().that().resideInAPackage("..internal.usecase..").should()
-            .dependOnClassesThat(DescribedPredicate.describe("Spring types other than Service",
-                type -> type.getPackageName().startsWith("org.springframework")
-                    && !type.getName().equals("org.springframework.stereotype.Service")))
-            .check(CLASSES);
-    }
-
-    /** DataSourceのinterfaceと実装を解析し、公開Queryの結果型へ依存していないことを検証する。 */
-    @Test
-    void dataSourcesDoNotDependOnPublicQueryResults() {
-        noClasses().that().haveSimpleNameEndingWith("DataSource").should().dependOnClassesThat()
-            .resideInAPackage("..api.query..").check(CLASSES);
-    }
-
-    /** Query実装の依存先がDataSourceによる参照経路に適合することを検証する。 */
-    @Test
-    void queryBypassesDomainAndUseCases() {
-        noClasses().that().resideInAPackage("..internal.query..").should().dependOnClassesThat()
-            .resideInAnyPackage("..internal.domain..", "..internal.usecase..").check(CLASSES);
-    }
-
-    /** generated jOOQ型への参照がinfrastructure内に限定されていることを検証する。 */
-    @Test
-    void generatedTypesAreUsedOnlyByInfrastructure() {
-        noClasses().that()
-            .resideOutsideOfPackages("..internal.infrastructure..", Application.class.getPackageName() + ".jooq..")
-            .should().dependOnClassesThat().resideInAPackage(Application.class.getPackageName() + ".jooq..")
-            .check(CLASSES);
-    }
-
-    /** Web adapterを解析し、jOOQによる直接SQL操作へ依存していないことを検証する。 */
-    @Test
-    void webDoesNotUseSqlDirectly() {
-        noClasses().that().resideInAPackage("..web..").should().dependOnClassesThat().resideInAPackage("org.jooq..")
-            .check(CLASSES);
+    static {
+        CLASSES = new ClassFileImporter().withImportOption(PRODUCTION)
+            .importPackages(Application.class.getPackageName());
     }
 
     /** 公開Command／Queryの実装にtransactionと認可があり、QueryがreadOnlyであることを検証する。 */
@@ -115,6 +63,57 @@ class ArchitectureTest {
         }
     }
 
+    /** DataSourceのinterfaceと実装を解析し、公開Queryの結果型へ依存していないことを検証する。 */
+    @Test
+    void dataSourcesDoNotDependOnPublicQueryResults() {
+        noClasses().that().haveSimpleNameEndingWith("DataSource").should().dependOnClassesThat()
+            .resideInAPackage("..api.query..").check(CLASSES);
+    }
+
+    /** domainとUseCaseを解析し、SQL・Web・Security等の実装型へ依存していないことを検証する。 */
+    @Test
+    void domainAndUseCasesAreIndependentOfFrameworks() {
+        noClasses().that().resideInAnyPackage("..internal.domain..", "..internal.usecase..").should()
+            .dependOnClassesThat().resideInAnyPackage("org.jooq..", "com.vaadin..", "jakarta..", "com.github.f4b6a3..",
+                Application.class.getPackageName() + ".jooq..")
+            .check(CLASSES);
+    }
+
+    /** domainはSpring非依存、UseCaseはService登録annotation以外のSpring型へ非依存であることを検証する。 */
+    @Test
+    void domainAndUseCasesRestrictSpringDependencies() {
+        noClasses().that().resideInAPackage("..internal.domain..").should().dependOnClassesThat()
+            .resideInAPackage("org.springframework..").check(CLASSES);
+        noClasses().that().resideInAPackage("..internal.usecase..").should()
+            .dependOnClassesThat(DescribedPredicate.describe("Spring types other than Service",
+                type -> type.getPackageName().startsWith("org.springframework")
+                    && !type.getName().equals("org.springframework.stereotype.Service")))
+            .check(CLASSES);
+    }
+
+    /** generated jOOQ型への参照がinfrastructure内に限定されていることを検証する。 */
+    @Test
+    void generatedTypesAreUsedOnlyByInfrastructure() {
+        noClasses().that()
+            .resideOutsideOfPackages("..internal.infrastructure..", Application.class.getPackageName() + ".jooq..")
+            .should().dependOnClassesThat().resideInAPackage(Application.class.getPackageName() + ".jooq..")
+            .check(CLASSES);
+    }
+
+    /** system主体での実行境界を、信頼されたprocess内adapterに限定する。 */
+    @Test
+    void onlyBackgroundAdaptersCanEstablishSystemIdentity() {
+        noClasses().that().resideOutsideOfPackages("..security..", "..batch..", "..scheduling..").should()
+            .dependOnClassesThat().haveFullyQualifiedName(SystemExecution.class.getName()).check(CLASSES);
+    }
+
+    /** Query実装の依存先がDataSourceによる参照経路に適合することを検証する。 */
+    @Test
+    void queryBypassesDomainAndUseCases() {
+        noClasses().that().resideInAPackage("..internal.query..").should().dependOnClassesThat()
+            .resideInAnyPackage("..internal.domain..", "..internal.usecase..").check(CLASSES);
+    }
+
     /** Transactionalの配置を解析し、Command/Query境界以外へtransaction責務が漏れないことを検証する。 */
     @Test
     void transactionsBelongToCommandAndQueryBoundaries() {
@@ -123,10 +122,17 @@ class ArchitectureTest {
         noClasses().that().resideOutsideOfPackages("..internal.command..", "..internal.query..").should()
             .beAnnotatedWith(Transactional.class).check(CLASSES);
     }
-    /** system主体での実行境界を、信頼されたprocess内adapterに限定する。 */
+
+    /** production classをModulithで解析し、循環依存がなく公開APIだけがmodule外へ公開されることを検証する。 */
     @Test
-    void onlyBackgroundAdaptersCanEstablishSystemIdentity() {
-        noClasses().that().resideOutsideOfPackages("..security..", "..batch..", "..scheduling..").should()
-            .dependOnClassesThat().haveFullyQualifiedName(SystemExecution.class.getName()).check(CLASSES);
+    void verifiesModuleBoundariesAndPublicInterfaces() {
+        ApplicationModules.of(Application.class, PRODUCTION).verify();
+
+    }
+    /** Web adapterを解析し、jOOQによる直接SQL操作へ依存していないことを検証する。 */
+    @Test
+    void webDoesNotUseSqlDirectly() {
+        noClasses().that().resideInAPackage("..web..").should().dependOnClassesThat().resideInAPackage("org.jooq..")
+            .check(CLASSES);
     }
 }

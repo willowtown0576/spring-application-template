@@ -15,6 +15,7 @@ import com.vaadin.flow.server.auth.AnonymousAllowed;
 @PageTitle("ログイン | Application Starter")
 @AnonymousAllowed
 public class LoginView extends VerticalLayout implements BeforeEnterObserver {
+    /** credentialの送信と認証失敗の表示を担う標準フォーム。 */
     private final LoginForm login = new LoginForm();
 
     /** 標準LoginFormを構成し、passwordをapplicationのイベント処理へ渡さない。 */

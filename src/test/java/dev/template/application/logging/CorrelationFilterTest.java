@@ -18,6 +18,19 @@ import org.springframework.mock.web.MockHttpServletResponse;
 @ExtendWith(OutputCaptureExtension.class)
 class CorrelationFilterTest {
     /**
+     * 機密情報を含む例外をログへ渡し、型とstack frameだけが出力され、messageが漏れないことを検証する。
+     *
+     * @param output テスト中のログ出力
+     */
+    @Test
+    void exceptionLoggingKeepsFramesButOmitsMessages(final CapturedOutput output) {
+        TechnicalErrors.log(LoggerFactory.getLogger(TechnicalErrors.class), "test operation",
+            new IllegalStateException("secret-password", new IOException("secret-token")));
+        assertThat(output.getAll()).contains("IllegalStateException", "IOException", "CorrelationFilterTest")
+            .doesNotContain("secret-password", "secret-token");
+    }
+
+    /**
      * 外部から相関IDを指定したrequestと処理中の例外に対し、サーバー生成IDが使われ、元のMDCが復元されることを検証する。
      *
      * @param output テスト中のログ出力
@@ -40,18 +53,5 @@ class CorrelationFilterTest {
         } finally {
             MDC.remove(CorrelationFilter.KEY);
         }
-    }
-
-    /**
-     * 機密情報を含む例外をログへ渡し、型とstack frameだけが出力され、messageが漏れないことを検証する。
-     *
-     * @param output テスト中のログ出力
-     */
-    @Test
-    void exceptionLoggingKeepsFramesButOmitsMessages(final CapturedOutput output) {
-        TechnicalErrors.log(LoggerFactory.getLogger(TechnicalErrors.class), "test operation",
-            new IllegalStateException("secret-password", new IOException("secret-token")));
-        assertThat(output.getAll()).contains("IllegalStateException", "IOException", "CorrelationFilterTest")
-            .doesNotContain("secret-password", "secret-token");
     }
 }

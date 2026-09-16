@@ -44,7 +44,7 @@
 | `Application Starter`等の表示 | [StarterLayout](../src/main/java/dev/template/application/web/ui/StarterLayout.java)、[WelcomeView](../src/main/java/dev/template/application/web/ui/WelcomeView.java)、[LoginView](../src/main/java/dev/template/application/web/ui/LoginView.java)、[ComponentGalleryView](../src/main/java/dev/template/application/web/ui/ComponentGalleryView.java)の表示文言／PageTitleと対応UI test |
 | `0.1.0-SNAPSHOT` | root build.gradle.ktsのversion、docsのJAR名・release例。APIのmajor versionとは別管理 |
 | `spring-application-starter-docs:1` | root build.gradle.ktsのdocumentationImage、[docker/compose.yaml](../docker/compose.yaml)のdocs-tools.image、[renovate.json](../renovate.json)のignoreDeps。複数案件でtoolchainを変更するなら共有tagの衝突を避ける |
-| `starter.security.user` | 条件付きの名称変更。application.yml、[LocalAuthenticationConfiguration](../src/main/java/dev/template/application/security/LocalAuthenticationConfiguration.java)のConfigurationProperties、src/test/resources/application.properties、認証設定test。APP_USER_*は環境変数契約であり別途判断 |
+| `starter.security.local`／`starter.security.user` | 条件付きの名称変更。application.yml、[LocalAuthenticationConfiguration](../src/main/java/dev/template/application/security/LocalAuthenticationConfiguration.java)の条件とConfigurationProperties、build.gradle.ktsのbootRun、test resources、認証設定test。STARTER_SECURITY_LOCAL_ENABLED／APP_USER_*は環境変数契約であり別途判断 |
 | `starter-docs-db-` | root build.gradle.ktsの一時Compose project prefix。UUIDで隔離される技術名なので保持可能 |
 | `starter-*`のUI ID／`APPLICATION STARTER / UI EXAMPLES` | sampleを残す場合の内部IDと表示文言を区別する。ID変更時はFeatureUiIntegrationTestのselectorも更新する |
 
@@ -56,7 +56,7 @@
 
 ## C. ローカル環境と設定
 
-- [ ] **C1 変更必須 — 開発者ごとに起動設定を与える。** [local-env.properties.example](../config/local-env.properties.example)をGit管理外のlocal-env.propertiesへコピーし、DEV_DB_PASSWORDとAPP_USER_NAME／APP_USER_PASSWORDを設定する。passwordは12 code point以上・72 UTF-8 bytes以下。初期値や実credentialをtemplateへ埋め込まない。外部UserDetailsServiceへ変更済みならE2の契約に従う。
+- [ ] **C1 変更必須 — 開発者ごとに起動設定を与える。** [local-env.properties.example](../config/local-env.properties.example)をGit管理外のlocal-env.propertiesへコピーし、DEV_DB_PASSWORDとAPP_USER_NAME／APP_USER_PASSWORDを設定する。passwordは12 code point以上・72 UTF-8 bytes以下。初期値や実credentialをtemplateへ埋め込まない。案件の認証へ変更済みならE2の契約に従う。
 - [ ] **C2 判断必須 — 開発DB名・user・volumeの扱いを決める。** Composeのdev用POSTGRES_DB／USERは`application`、volume keyは`postgres-data`。保持してよいがCompose project名・volumeは案件ごとに分離する。directory名やCOMPOSE_PROJECT_NAMEも確認する。既存volumeのpasswordは設定file変更だけでは変わらない。
 - [ ] **C3 判断必須 — 同時起動と接続設定を決める。** 8080が競合する場合はSERVER_PORT、必要時は待受addressを設定する。開発DBはloopbackの動的portを使う。既存環境変数がlocal fileより優先されること、JARはlocal fileを読まないことを確認する。
 - [ ] **C4 判断必須 — チームの実行環境を合わせる。** JDK 25／Gradle JVM、Docker、依存・image・Chromium取得経路を確認する。network制限がある場合だけMaven／container／browserの取得設定を追加する。GradleはWrapper、NodeはVaadinのbuild toolingで管理する。
@@ -83,17 +83,17 @@
 | 認証・system | LocalAuthenticationConfigurationの権限付与、SystemActorの権限。SystemActorは`List<GrantedAuthority>`で複数featureの権限を保持できる |
 | REST／UI | FeatureController、FeatureView、StarterLayout／WelcomeViewのDB連携リンク、OpenApiConfigurationのtitle／説明 |
 | 品質設定 | ArchitectureTestのpackage規約、SpotBugs filterのCreateFeatureUseCase例外。gallery削除時はCheckstyleのComponentGalleryView.nextId例外も削除 |
-| test | FeatureNameTest、CreateFeatureUseCaseTest、DatabaseIntegrationTest、WithTestUser、LocalAuthenticationConfigurationTest、SystemExecutionTest、FeatureUiIntegrationTest、ApiDocumentationTestのsample依存 |
+| test | FeatureNameTest、CreateFeatureUseCaseTest、DatabaseIntegrationTest、WithTestUser、LocalAuthenticationConfigurationTest、ProjectAuthenticationIntegrationTest、SystemExecutionTest、FeatureUiIntegrationTest、ApiDocumentationTestのsample依存 |
 | DB資料 | .tbls.ymlのname／desc／exclude、DB guide／ER説明 |
 | プロジェクト資料 | README、architecture、developer-guide、operations、図のsample説明とURL |
 
 ## E. 認証・認可・実行主体
 
-- [ ] **E1 判断必須 — 認証方式を採用する。** 現行は明示設定された1利用者のInMemoryUserDetailsManager＋フォーム／session認証。利用者数、個別監査、退職・無効化、password変更、SSO、MFA等の要件と照合する。1利用者方式で足りる場合は保持できるが、実運用credentialを設定する。
-- [ ] **E2 条件付き — 認証を差し替える。** UserDetailsServiceを提供すると標準利用者設定はbackoffする。独自AuthenticationProvider／外部認証を追加するだけで同じbackoffになるとは限らないため、LocalAuthenticationConfigurationの条件、SecurityConfiguration、LoginView／logout、application.ymlの自動構成除外、APP_USER_*、testを一組で更新する。置換先でも認証・認可を必須とする。
+- [ ] **E1 判断必須 — 本番の認証方式を採用する。** 環境設定による1利用者認証は開発専用。本番はSTARTER_SECURITY_LOCAL_ENABLED=falseとし、利用者数、個別監査、退職・無効化、password変更、SSO、MFA等の要件に合わせて案件の認証を実装する。組織のSSOまたは利用者ごとのDB認証等を選び、設定・secretの管理先を決める。
+- [ ] **E2 変更必須 — 認証を接続する。** 通常ConfigurationでUserDetailsService／AuthenticationProvider／AuthenticationManagerのいずれかをBean公開し、対象のSecurityFilterChainへ接続する。開発用認証はbackoffし、APP_USER_*は不要となる。認証Bean未設定は起動失敗。OIDC等は採用依存、接続設定、実際に使うprovider／managerのBean公開、UI chain、LoginView／ナビ、logout、Authority変換を一組で構成する。手順は[運用ガイド](operations.md#authentication)を参照する。開発用認証が無効な状態で実際のlogin成功・失敗、開発credential拒否、logoutと権限不足を検証する。
 - [ ] **E3 変更必須 — 業務権限を定義する。** feature:read／writeを各業務Authorityと利用者への付与規則に置き換える。業務操作の本認可はCommand／QueryのMethod Securityとする。必要ならtenant／所有者／行単位の認可を追加し、権限不足testも用意する。
 - [ ] **E4 判断必須 — system主体の権限を確定する。** 現行BATCHはfeature参照・更新、SCHEDULERは参照だけ。実Job／定期処理が必要とする最小権限へ変更する。system: namespaceを利用者と分離し、システム主体は信頼されたadapterのコードで選択する。
-- [ ] **E5 判断必須 — 運用権限を分離する。** ops:readとAPP_USER_OPERATIONS_READの付与先、Actuator／API資料への到達範囲を決める。全利用者に運用権限を配らない。
+- [ ] **E5 判断必須 — 運用権限を分離する。** 本番のops:read付与先と開発用APP_USER_OPERATIONS_READ、Actuator／API資料への到達範囲を決める。全利用者に運用権限を配らない。
 - [ ] **E6 判断必須 — sessionと公開境界を設定する。** HTTPS、cookieのSecure／HttpOnly／SameSite、session有効期限、CSRF、login失敗時の制限、proxy越しのURLを実配置で確認する。別originのREST clientが必要ならCORS・認証・CSRF方式をそのclient向けに設計し、clientごとの信頼境界に応じて保護設定を適用する。
 - [ ] **E7 条件付き — 複数instanceならsession・処理分担を設計する。** Vaadinのserver側UI state、再起動時のsession、load balancerの振り分け、Batch／Schedulerの多重起動を確認する。Redis等の採用は配置要件に基づいて判断する。
 
@@ -119,7 +119,7 @@
 ## H. CI・配布・運用環境
 
 - [ ] **H1 判断必須 — 案件repositoryの管理を設定する。** GitHubのアクセス権、Actions利用可否、default branch、merge規則・必須checkを設定する。現行CIは全branch push／PR、job名check。main固定のworkflow置換は不要だが、repository側の保護は別途必要。
-- [ ] **H2 判断必須 — CI実行条件を確定する。** Ubuntu 24.04／JDK 25／Docker／Chromium依存installが可能か確認する。runner変更時はPlaywright依存・Docker権限・architectureを検証する。通常のbuildはtest専用credentialと一時DBを使うため、本番APP_USER_*／DB secretをCIへ渡す必要はない。
+- [ ] **H2 判断必須 — CI実行条件を確定する。** Ubuntu 24.04／JDK 25／Docker／Chromium依存installが可能か確認する。runner変更時はPlaywright依存・Docker権限・architectureを検証する。通常のbuildはtest専用credentialと一時DBを使うため、本番認証のsecret／DB secretをCIへ渡す必要はない。
 - [ ] **H3 判断必須 — 依存更新を接続する。** 案件repositoryへRenovate App等を接続し、renovate.jsonの対象・group・自動merge無効・資料image除外名を確認する。外部Appの接続は案件repository上で確認する。
 - [ ] **H4 判断必須 — releaseの公開先・公開条件を確定する。** 現行は`v*` tagで検証後GitHub Releaseを公開し、workflow_dispatchはbuildとartifact保存を担当する。versionはsuffixなしSemVerとtag一致が必要。GitHub Releaseを使わない案件はpublish jobと成果物の受け渡しを変更する。公開を伴わない検証にはworkflow_dispatchを使う。
 - [ ] **H5 判断必須 — 配布先を構築する。** JAR／OCI、実行基盤、registry／image名、network、DNS／TLS、起動・停止・更新・切り戻し手順を決める。bootBuildImageはローカル生成までで、registry push／deploymentは未提供。必要な認証とCI処理を案件側で追加する。

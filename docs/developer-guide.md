@@ -43,13 +43,26 @@ testもconstructor injectionを基本とし、MockitoSpyBeanはclassに宣言し
 
 ## JavaDoc・format・import
 
-- 手書きの型とmethodには責務・契約を説明するJavaDocを付ける。parameter、return、必要な例外条件を説明する。
+- 手書きの型とmethodには責務・契約を説明するJavaDocを付ける。parameter、return、必要な例外条件を説明する。フィールドとenum定数にも保持する値・依存先・用途を説明するJavaDocを付け、privateとtestも対象にする。serialVersionUIDはCheckstyle標準の除外対象、record componentは型の@paramで説明する。
 - Overrideは `{@inheritDoc}`、test／lifecycleは条件と期待結果を記載する。
 - コメントは、現在の仕様・責務・制約の理由を単独で理解できる説明とする。
 - Java formatはSpotlessのEclipse JDT。基本4スペース、継続行は追加4スペース、行幅120。設定の正本は[formatter profile](../config/formatter/eclipse-java.xml)。
 - `./gradlew spotlessApply` はimportOrder／removeUnusedImportsも実行する。Checkstyleでもunused／redundant importを検査する。継承したnested type等、意味上の冗長importは自動検出に限界があるためreviewする。
 - 利用するAPIは採用versionの推奨APIとする。全JavaCompileで `-Xlint:deprecation -Xlint:removal -Xlint:dep-ann -Werror` を適用する。main／test／codegenとも推奨APIへ置き換え、`@SuppressWarnings` のdeprecation／removal／all指定による回避を禁止する。警告を隠す `@Deprecated` 宣言も手書きsourceでは禁止し、Javadocだけのdeprecated宣言はdep-annで拒否する。
-- formatの変更範囲は字下げ・改行・import整理とする。memberの構成変更は責務や可読性の改善として判断する。
+- SpotlessのSort Membersでmemberを下表の順に整列する。同じ分類ではpublic→protected→package→private、同じ可視性では名前順とする。method・nested typeも対象になる。
+- CheckstyleのDeclarationOrderでフィールド・constructor・methodの配置とフィールドの可視性順を検査する。名前順を含むソート結果との一致はspotlessCheckで検査する。
+- 順序に依存する初期化はconstructorまたはinitializerに代入順を明示する。enum定数もソートされるため、宣言順に意味のあるenumを含むfileは理由を添えた `// @SortMembers:doNotSortFields=true` でフィールド・enum定数・initializerの並べ替えを止め、フィールドを手動で規約順に配置する。部品集のStatusは表示順を保持する。この場合もDeclarationOrderとJavaDoc検査を適用する。
+
+| 順番 | member |
+|---|---|
+| 1 | static field |
+| 2 | static initializer |
+| 3 | instance field |
+| 4 | instance initializer |
+| 5 | constructor |
+| 6 | static method |
+| 7 | instance method |
+| 8 | nested type |
 
 ## REST
 

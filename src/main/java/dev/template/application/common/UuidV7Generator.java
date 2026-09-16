@@ -14,6 +14,7 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public final class UuidV7Generator implements Supplier<UUID> {
+    /** 注入されたClockを使用するUUID v7生成器。 */
     private final TimeOrderedEpochFactory factory;
 
     /**

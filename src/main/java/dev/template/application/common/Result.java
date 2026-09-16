@@ -12,25 +12,6 @@ import java.util.Objects;
  */
 public sealed interface Result<S, F> {
     /**
-     * 成功値を保持する。
-     *
-     * @param <S> 成功値の型
-     * @param <F> 失敗理由の型
-     * @param value 成功値
-     */
-    record Success<S, F>(S value) implements Result<S, F> {
-        /**
-         * 成功値の非null契約を検証する。
-         *
-         * @param value 成功値
-         * @throws NullPointerException 成功値がnullの場合
-         */
-        public Success {
-            Objects.requireNonNull(value);
-        }
-    }
-
-    /**
      * 呼び出し側で処理すべき業務上の失敗を保持する。
      *
      * @param <S> 成功値の型
@@ -46,6 +27,25 @@ public sealed interface Result<S, F> {
          */
         public Failure {
             Objects.requireNonNull(reason);
+        }
+    }
+
+    /**
+     * 成功値を保持する。
+     *
+     * @param <S> 成功値の型
+     * @param <F> 失敗理由の型
+     * @param value 成功値
+     */
+    record Success<S, F>(S value) implements Result<S, F> {
+        /**
+         * 成功値の非null契約を検証する。
+         *
+         * @param value 成功値
+         * @throws NullPointerException 成功値がnullの場合
+         */
+        public Success {
+            Objects.requireNonNull(value);
         }
     }
 }

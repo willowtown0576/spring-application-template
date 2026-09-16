@@ -12,13 +12,19 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 /** 不正なHTTP timeout設定が起動時に拒否されることを検証する。 */
 @Tag("integration")
 class HttpTimeoutConfigurationIntegrationTest {
+    /** HTTP timeout設定のbindingと必須値を検証するrunner。 */
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
         .withUserConfiguration(HttpTimeoutConfiguration.class);
 
-    /** 必須timeout設定がない構成を起動し、設定検証で起動に失敗することを検証する。 */
+    /** 有効なDurationを設定し、接続・応答timeoutが指定値でbindされることを検証する。 */
     @Test
-    void missingTimeoutsFailStartup() {
-        runner.run(context -> assertThat(context).hasFailed());
+    void durationsBindToValidatedConfiguration() {
+        runner.withPropertyValues("spring.http.clients.connect-timeout=2s", "spring.http.clients.read-timeout=10s")
+            .run(context -> {
+                assertThat(context).hasNotFailed();
+                assertThat(context.getBean(HttpTimeoutConfiguration.Timeouts.class).connectTimeout())
+                    .isEqualTo(Duration.ofSeconds(2));
+            });
     }
 
     /**
@@ -33,14 +39,9 @@ class HttpTimeoutConfigurationIntegrationTest {
             .run(context -> assertThat(context).hasFailed());
     }
 
-    /** 有効なDurationを設定し、接続・応答timeoutが指定値でbindされることを検証する。 */
+    /** 必須timeout設定がない構成を起動し、設定検証で起動に失敗することを検証する。 */
     @Test
-    void durationsBindToValidatedConfiguration() {
-        runner.withPropertyValues("spring.http.clients.connect-timeout=2s", "spring.http.clients.read-timeout=10s")
-            .run(context -> {
-                assertThat(context).hasNotFailed();
-                assertThat(context.getBean(HttpTimeoutConfiguration.Timeouts.class).connectTimeout())
-                    .isEqualTo(Duration.ofSeconds(2));
-            });
+    void missingTimeoutsFailStartup() {
+        runner.run(context -> assertThat(context).hasFailed());
     }
 }

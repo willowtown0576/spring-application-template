@@ -11,6 +11,7 @@ import org.springframework.context.annotation.Configuration;
 /** Bootが構築するHTTP clientへ相関ID伝播と診断用metadataのログを追加する。 */
 @Configuration(proxyBeanMethods = false)
 class HttpClientLogging {
+    /** 外向きHTTP通信の診断用metadataと秘匿処理済みの障害情報の出力先。 */
     private static final Logger LOG = LoggerFactory.getLogger(HttpClientLogging.class);
 
     /**

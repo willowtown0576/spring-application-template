@@ -18,8 +18,11 @@ import org.springframework.web.filter.OncePerRequestFilter;
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
 class CorrelationFilter extends OncePerRequestFilter {
+    /** HTTP応答と外向きHTTP通信で相関IDを伝播するheader名。 */
     static final String HEADER = "X-Correlation-ID";
+    /** 処理中の相関IDを保持するMDCのkey。 */
     static final String KEY = "correlationId";
+    /** 受信HTTP通信のmethod・status・所要時間の出力先。 */
     private static final Logger LOG = LoggerFactory.getLogger(CorrelationFilter.class);
 
     /** {@inheritDoc} */

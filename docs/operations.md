@@ -1,6 +1,6 @@
 # 設定・運用・リリース
 
-設計判断は[ADR-018](decisions.md#adr-018)、[ADR-012／013](decisions.md#adr-012)、[ADR-016](decisions.md#adr-016)を参照する。
+設計判断は[ADR-026](decisions.md#adr-026)、[ADR-018](decisions.md#adr-018)、[ADR-012／013](decisions.md#adr-012)、[ADR-016](decisions.md#adr-016)を参照する。
 
 ## 設定
 
@@ -9,9 +9,10 @@
 | 環境変数 | 用途・default |
 |---|---|
 | DEV_DB_PASSWORD | bootRunの開発Compose DB用。必須 |
-| APP_USER_NAME | 標準利用者のログインID。必須 |
-| APP_USER_PASSWORD | 標準利用者のpassword。12文字以上、72 UTF-8 bytes以下。必須 |
-| APP_USER_OPERATIONS_READ | 標準利用者へのops:read付与。false |
+| STARTER_SECURITY_LOCAL_ENABLED | 開発用認証の有効化。通常起動はfalse、bootRunは未設定時にtrueを補完。本番はfalse |
+| APP_USER_NAME | 開発用利用者のログインID。開発用認証を使用する場合だけ必須 |
+| APP_USER_PASSWORD | 開発用利用者のpassword。12文字以上、72 UTF-8 bytes以下。開発用認証を使用する場合だけ必須 |
+| APP_USER_OPERATIONS_READ | 開発用利用者へのops:read付与。false |
 | SPRING_DATASOURCE_URL | 配布JAR／OCIの既存PostgreSQL JDBC URL |
 | SPRING_DATASOURCE_USERNAME | 配布先DBユーザー |
 | SPRING_DATASOURCE_PASSWORD | 配布先DB password |
@@ -24,13 +25,29 @@
 timeoutは正のDuration。bootRunだけはconfig/local-env.propertiesから環境変数を補完する。詳細は[setup](getting-started.md)。配布JARの設定は実行環境の環境変数から供給する。credentialの管理先はsecret管理基盤またはGit管理外のローカル設定とする。
 
 <a id="authentication"></a>
-## デフォルト認証と実行主体
+## 開発用認証・案件認証と実行主体
 
-Spring Securityのフォーム認証とVaadin標準LoginFormを使用する。`/login` へ設定したAPP_USER_NAME／APP_USER_PASSWORDを入力するとsessionが確立する。未認証の保護UIはloginへ誘導され、REST／Actuatorは401を返す。ヘッダーのログアウトはsessionを無効化する。
+開発用認証は`starter.security.local.enabled=true`の場合だけ有効。bootRunは環境変数`STARTER_SECURITY_LOCAL_ENABLED`が未設定ならtrueを補完する。既存環境変数、次にlocal-env.propertiesの値を優先する。IDEから直接起動する場合は開発用の実行設定で明示的に有効化する。
 
-passwordは起動時にBCryptでencodeし、標準InMemoryUserDetailsManagerへ登録する。固定passwordや自動生成passwordはない。利用者名のsystem: prefixはシステム主体用に予約されている。設定不足と不正な長さは起動時に拒否する。利用者はfeatureの参照・更新権限を持ち、運用権限はAPP_USER_OPERATIONS_READ=trueの場合だけ付与する。
+開発用認証ではSpring Securityのフォーム認証とVaadin標準LoginFormを使用する。`/login`へAPP_USER_NAME／APP_USER_PASSWORDを入力するとsessionが確立する。passwordは起動時にBCryptでencodeし、InMemoryUserDetailsManagerへ登録する。設定不足と不正な長さは起動時に拒否する。利用者名のsystem: prefixはシステム主体用に予約する。利用者はfeatureの参照・更新権限を持ち、運用権限はAPP_USER_OPERATIONS_READ=trueの場合だけ付与する。
 
-標準認証は設定値で定義する1利用者を対象とする。複数利用者、個別監査、password変更、SSO等が必要な案件ではUserDetailsService／認証providerを置き換える。UserDetailsServiceが定義されている場合はその実装を使用する。LocalAuthenticationConfigurationはAutoConfiguration.importsで登録し、案件側の通常Configurationの後に条件評価する。外部認証へ移行してもAuthorityとCommand／Queryの認可境界を維持する。
+### 本番の認証を接続する
+
+配布JAR／OCIは開発用認証が既定で無効。APP_USER_*だけを設定しても開発用利用者は作成されない。本番ではSTARTER_SECURITY_LOCAL_ENABLED=falseを維持し、案件の認証方式を設定する。Bootによる利用者の自動生成も無効としている。
+
+案件側の通常ConfigurationにUserDetailsService、AuthenticationProvider、AuthenticationManagerのいずれかのBeanを定義する。これらがある場合は開発用認証の有効化設定にかかわらずLocalAuthenticationConfigurationがbackoffし、APP_USER_*の設定・検証は不要となる。案件側のauto-configurationで提供する場合はLocalAuthenticationConfigurationより先に登録する。
+
+起動時に上記の認証Beanが一つもなければ`Authentication is not configured`として起動を失敗させる。検査は認証の提供元の存在を対象とする。実際のcredential照合、接続先、filter chainへの組み込み、権限の割り当ては案件の統合testで確認する。
+
+| 採用方式 | 案件側の実装・設定 |
+|---|---|
+| DB等の利用者store＋フォーム認証 | UserDetailsService Beanで利用者・ハッシュ化password・Authorityを提供する。採用したhash形式に合わせPasswordEncoderを設定する。標準の/login・session・logoutを利用できる |
+| 独自AuthenticationProvider／AuthenticationManager | 実際に使用するproviderまたはmanagerをBeanとして公開し、対象のSecurityFilterChainへ組み込む。複数providerの場合も使用順と対象を明示する |
+| OIDC等の外部認証 | 採用方式の依存、IdP／client設定、実際に使うAuthenticationProviderまたはAuthenticationManager Beanを用意し、SecurityConfigurationのUI chain・LoginView／ナビ・logoutを方式に合わせる。OIDCではoauth2LoginとVaadinの対応設定を使用し、IdPの権限を業務Authorityへ変換する |
+
+外部認証の接続設定やfilter chain内だけのprovider定義は、上記のBean公開を代替しない。OIDCの依存追加だけでは接続は完了しない。SSOや利用者管理DBは案件で実装し、開発用認証を無効にした状態で、認証成功・失敗、開発credentialの拒否、logout、権限不足を確認する。Method SecurityとCSRF保護は採用方式でも維持する。
+
+未認証の保護UIはloginへ誘導し、REST／Actuatorは401を返す。標準ヘッダーのログアウトはsessionを無効化する。
 
 | 対象 | 必要な権限 |
 |---|---|
@@ -126,7 +143,7 @@ Spring標準DelegatingSecurityContextCallableが、正常・例外・nested実�
 java -jar build/libs/spring-application-starter-0.1.0-SNAPSHOT.jar
 ```
 
-上記は初期versionの例。実際のfile名はGradle project name／versionに従う。起動前に既存PostgreSQLへの3つのSPRING_DATASOURCE_*とAPP_USER_NAME／APP_USER_PASSWORDを環境から与える。JARには開発用Compose連携が含まれず、Flywayが接続先へmigrationを適用する。適用権限、backup、既存schemaへの影響は配置先で管理する。
+上記は初期versionの例。実際のfile名はGradle project name／versionに従う。案件の認証実装を組み込んだうえで、起動前に既存PostgreSQLへの3つのSPRING_DATASOURCE_*と採用した認証方式の設定・secretを実行環境から与える。開発用のAPP_USER_*は不要。認証Beanがなければ起動に失敗する。JARには開発用Compose連携が含まれず、Flywayが接続先へmigrationを適用する。適用権限、backup、既存schemaへの影響は配置先で管理する。
 
 ```bash
 ./gradlew bootBuildImage

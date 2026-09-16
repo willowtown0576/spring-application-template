@@ -73,22 +73,18 @@ import java.util.Locale;
 @PageTitle("UI component gallery")
 @AnonymousAllowed
 public class ComponentGalleryView extends VerticalLayout implements BeforeEnterObserver {
-    // View内の行識別子。Viewの再作成時に初期化する。
-    private long nextId;
-    private final Grid<SampleItem> grid = new Grid<>(SampleItem.class, false);
+    // Statusの宣言順を選択肢の表示順として保持する。フィールドは規約順に手動配置する。
+    // @SortMembers:doNotSortFields=true
+    /** sample行の追加・更新・削除と絞り込みを反映するデータビュー。 */
     private final GridListDataView<SampleItem> data;
+    /** このViewが保持するsample行の一覧と編集・削除操作。 */
+    private final Grid<SampleItem> grid = new Grid<>(SampleItem.class, false);
+    /** View内の行採番。Viewの再作成時に初期化する。 */
+    private long nextId;
+    /** sample名の部分一致検索に使用する入力欄。 */
     private final TextField search = new TextField("名前で検索");
+    /** 一覧をsampleの状態で絞り込む選択欄。 */
     private final ComboBox<Status> statusFilter = new ComboBox<>("状態");
-
-    /** {@inheritDoc} */
-    @Override
-    public void beforeEnter(final BeforeEnterEvent event) {
-        if ("theme-preview".equals(event.getLocation().getPath())) {
-            final boolean dark = event.getLocation().getQueryParameters().getSingleParameter("scheme")
-                .filter("dark"::equals).isPresent();
-            event.getUI().getPage().setColorScheme(dark ? ColorScheme.Value.DARK : ColorScheme.Value.LIGHT);
-        }
-    }
 
     /** 標準部品だけで、一覧と入力例を組み立てる。 */
     public ComponentGalleryView() {
@@ -199,11 +195,115 @@ public class ComponentGalleryView extends VerticalLayout implements BeforeEnterO
             "Gridは表示用record、Binderは入力検証、Dialogは編集、ConfirmDialogは破壊的操作の確認に使っています。画面内データを業務データに置き換える際は、QueryのResultから表示モデルへ変換し、保存時にParamを作ってCommandへ渡します。")));
     }
 
-    /** 検索条件を一覧のデータビューへ適用する。 */
-    private void filter() {
-        final String term = search.getValue().strip().toLowerCase(Locale.ROOT);
-        data.setFilter(item -> item.name().toLowerCase(Locale.ROOT).contains(term)
-            && (statusFilter.isEmpty() || item.status() == statusFilter.getValue()));
+    /** {@inheritDoc} */
+    @Override
+    public void beforeEnter(final BeforeEnterEvent event) {
+        if ("theme-preview".equals(event.getLocation().getPath())) {
+            final boolean dark = event.getLocation().getQueryParameters().getSingleParameter("scheme")
+                .filter("dark"::equals).isPresent();
+            event.getUI().getPage().setColorScheme(dark ? ColorScheme.Value.DARK : ColorScheme.Value.LIGHT);
+        }
+    }
+
+    /**
+     * Auraのカード・ボタンvariantを比較し、通知と確認操作を試す。
+     *
+     * @return 標準スタイルを比較するカード群
+     */
+    private FormLayout cardExamples() {
+        final Card actions = new Card();
+        actions.setTitle("操作の優先度");
+        actions.setSubtitle("標準・Primary・Tertiary・Error");
+        actions.addThemeVariants(CardVariant.ELEVATED);
+        final Button normal = new Button("標準", event -> Notification.show("標準ボタンを選びました。"));
+        final Button primary = new Button("確認する", VaadinIcon.CHECK.create(),
+            event -> Notification.show("確認しました。", 3000, Notification.Position.BOTTOM_START));
+        primary.setId("example-primary-action");
+        primary.addThemeVariants(ButtonVariant.PRIMARY);
+        final Button tertiary = new Button("補助操作", event -> Notification.show("補助操作を選びました。"));
+        tertiary.addThemeVariants(ButtonVariant.TERTIARY);
+        final Button danger = new Button("リセット", event -> {
+            final ConfirmDialog confirmation = new ConfirmDialog();
+            confirmation.setHeader("操作の確認サンプル");
+            confirmation.setText("この例では確認ダイアログだけを表示します。データは変更しません。");
+            confirmation.setCancelable(true);
+            confirmation.setCancelText("キャンセル");
+            confirmation.setConfirmText("確認しました");
+            confirmation.setConfirmButtonTheme("danger primary");
+            confirmation.open();
+        });
+        danger.addThemeVariants(ButtonVariant.ERROR);
+        final HorizontalLayout buttons = new HorizontalLayout(normal, primary, tertiary, danger);
+        buttons.setWrap(true);
+        actions.add(new Paragraph("重要な操作をPrimary、補助操作をTertiaryで表現します。"), buttons);
+
+        // 複数担当者の表示は標準AvatarGroupへ委ねる。
+        final Card team = new Card();
+        team.setTitle("レビューのサンプル");
+        team.setSubtitle("Outlined Card / AvatarGroup");
+        team.addThemeVariants(CardVariant.OUTLINED);
+        final AvatarGroup reviewers = new AvatarGroup(new AvatarGroup.AvatarGroupItem("サンプル A"),
+            new AvatarGroup.AvatarGroupItem("サンプル B"), new AvatarGroup.AvatarGroupItem("サンプル C"));
+        reviewers.setMaxItemsVisible(2);
+        team.add(new Paragraph("担当者のまとまりを表示。末尾の人数を開くと全員を確認できます。"), reviewers);
+
+        // 標準variantのカードと外観を比較する。
+        final Card plain = new Card();
+        plain.setTitle("シンプルなカード");
+        plain.setSubtitle("Default Card");
+        plain.add(new Paragraph("見出し・補足・本文・フッターを標準のslotで構成します。影や枠線はvariantで選択できます。"));
+        plain.addToFooter(new Span("右上のダークモードで明暗を比較できます。"));
+        final FormLayout cards = new FormLayout(actions, team, plain);
+        cards.setResponsiveSteps(new FormLayout.ResponsiveStep("0", 1), new FormLayout.ResponsiveStep("48rem", 2));
+        return cards;
+    }
+
+    /**
+     * 確認後にのみ画面内の行を削除する。
+     *
+     * @param item 削除対象
+     */
+    private void confirmDelete(final SampleItem item) {
+        final ConfirmDialog dialog = new ConfirmDialog();
+        dialog.setHeader("サンプルを削除");
+        dialog.setText("「" + item.name() + "」を削除しますか？");
+        dialog.setCancelable(true);
+        dialog.setCancelText("キャンセル");
+        dialog.setConfirmText("削除する");
+        dialog.setConfirmButtonTheme("danger primary");
+        dialog.addConfirmListener(event -> data.removeItem(item));
+        dialog.open();
+    }
+
+    /**
+     * メニュー操作、折りたたみ、アバター、アイコンとツールチップを試す。
+     *
+     * @return 標準の表示・操作部品の例
+     */
+    private VerticalLayout displayExamples() {
+        final Span result = new Span("メニューから操作を選択してください。");
+        result.setId("example-menu-result");
+        result.getElement().setAttribute("aria-live", "polite");
+        final MenuBar menu = new MenuBar();
+        menu.addItem("操作").getSubMenu().addItem("プレビュー", event -> result.setText("プレビューを選択しました。データは変更されません。"));
+        menu.addItem("ヘルプ", event -> result.setText("メニュー項目はクリックやキーボードで選べます。"));
+
+        // 人物表示と補助操作の例を組み合わせる。
+        final Avatar avatar = new Avatar("サンプル利用者");
+        final Button info = new Button("ヒント", VaadinIcon.INFO_CIRCLE.create(),
+            event -> Notification.show("標準アイコン付きボタンのサンプルです。"));
+        Tooltip.forComponent(info).setText("クリックすると通知を表示します");
+
+        // 補足情報は折りたたんで表示する。
+        final Accordion accordion = new Accordion();
+        accordion.setWidthFull();
+        accordion.add("この部品集について", new Paragraph("Vaadin標準コンポーネントの操作例です。"));
+        accordion.add("データの保存について", new Paragraph("入力内容はDBに保存されません。画面を再読み込みすると初期化されます。"));
+        final VerticalLayout layout = new VerticalLayout(new H2("表示と操作の部品"), new Paragraph("MenuBar"), menu, result,
+            new Paragraph("Avatar・Icon・Tooltip"), new HorizontalLayout(avatar, info), new Paragraph("Accordion"),
+            accordion);
+        layout.setPadding(false);
+        return layout;
     }
 
     /**
@@ -258,21 +358,11 @@ public class ComponentGalleryView extends VerticalLayout implements BeforeEnterO
         name.focus();
     }
 
-    /**
-     * 確認後にのみ画面内の行を削除する。
-     *
-     * @param item 削除対象
-     */
-    private void confirmDelete(final SampleItem item) {
-        final ConfirmDialog dialog = new ConfirmDialog();
-        dialog.setHeader("サンプルを削除");
-        dialog.setText("「" + item.name() + "」を削除しますか？");
-        dialog.setCancelable(true);
-        dialog.setCancelText("キャンセル");
-        dialog.setConfirmText("削除する");
-        dialog.setConfirmButtonTheme("danger primary");
-        dialog.addConfirmListener(event -> data.removeItem(item));
-        dialog.open();
+    /** 検索条件を一覧のデータビューへ適用する。 */
+    private void filter() {
+        final String term = search.getValue().strip().toLowerCase(Locale.ROOT);
+        data.setFilter(item -> item.name().toLowerCase(Locale.ROOT).contains(term)
+            && (statusFilter.isEmpty() || item.status() == statusFilter.getValue()));
     }
 
     /**
@@ -295,114 +385,6 @@ public class ComponentGalleryView extends VerticalLayout implements BeforeEnterO
         final Button preview = new Button("入力内容を確認",
             event -> Notification.show(enabled.getValue() ? "通知方法: " + delivery.getValue() : "通知は無効です。"));
         final VerticalLayout layout = new VerticalLayout(new H2("入力部品の組み合わせ"), form, preview);
-        layout.setPadding(false);
-        return layout;
-    }
-
-    /**
-     * 入力用途に合う標準fieldの制約と補助表示を試す。
-     *
-     * @return 数値・メール・パスワード・時刻の入力例
-     */
-    private VerticalLayout typedInputExamples() {
-        final EmailField email = new EmailField("メールアドレス（EmailField）");
-        email.setId("example-email");
-        email.setPlaceholder("sample@example.com");
-        email.setErrorMessage("メールアドレスの形式で入力してください。");
-        final PasswordField password = new PasswordField("パスワード（PasswordField）");
-        password.setHelperText("表示切替の確認用です。架空のパスワードを入力してください。");
-
-        // 整数・小数・時刻は、それぞれの標準fieldで入力を制約する。
-        final IntegerField quantity = new IntegerField("数量（IntegerField）");
-        quantity.setId("example-quantity");
-        quantity.setMin(1);
-        quantity.setMax(10);
-        quantity.setValue(1);
-        quantity.setStepButtonsVisible(true);
-        quantity.setHelperText("1〜10の整数");
-        quantity.setErrorMessage("1〜10の整数を入力してください。");
-        final NumberField temperature = new NumberField("温度（NumberField）");
-        temperature.setValue(22.5);
-        temperature.setStep(0.5);
-        temperature.setStepButtonsVisible(true);
-        temperature.setSuffixComponent(new Span("℃"));
-        final TimePicker time = new TimePicker("開始時刻（TimePicker）");
-        time.setStep(Duration.ofMinutes(30));
-        time.setValue(LocalTime.of(9, 0));
-
-        // 入力部品をレスポンシブに配置する。
-        final FormLayout form = new FormLayout(email, password, quantity, temperature, time);
-        form.setResponsiveSteps(new FormLayout.ResponsiveStep("0", 1), new FormLayout.ResponsiveStep("40rem", 2));
-        final VerticalLayout layout = new VerticalLayout(new H2("用途に合った入力欄"),
-            new Paragraph("入力形式、増減ボタン、接尾辞、パスワードの表示切替を試せます。"), form);
-        layout.setPadding(false);
-        return layout;
-    }
-
-    /**
-     * 単一選択と複数選択の操作・選択結果表示を試す。
-     *
-     * @return 標準の選択部品を並べたフォーム
-     */
-    private VerticalLayout selectionExamples() {
-        final Select<String> priority = new Select<>();
-        priority.setLabel("優先度（Select）");
-        priority.setItems("低", "通常", "高");
-        priority.setValue("通常");
-        final MultiSelectComboBox<String> tags = new MultiSelectComboBox<>("タグ（MultiSelectComboBox）");
-        tags.setItems("画面", "入力", "検索", "通知");
-        tags.setClearButtonVisible(true);
-        tags.select("画面");
-        final CheckboxGroup<String> channels = new CheckboxGroup<>();
-        channels.setId("example-channels");
-        channels.setLabel("確認対象（CheckboxGroup）");
-        channels.setItems("デスクトップ", "モバイル", "キーボード");
-        final ListBox<String> density = new ListBox<>();
-        density.setItems("ゆったり", "標準", "コンパクト");
-        density.setValue("標準");
-        density.getElement().setAttribute("aria-label", "表示密度の選択例");
-
-        // 選択結果は読み上げ対象とし、表示順を固定する。
-        final Span result = new Span("確認対象: 未選択");
-        result.setId("example-selection-result");
-        result.getElement().setAttribute("aria-live", "polite");
-        channels.addValueChangeListener(event -> result.setText("確認対象: "
-            + (event.getValue().isEmpty() ? "未選択" : String.join("・", event.getValue().stream().sorted().toList()))));
-        final FormLayout form = new FormLayout(priority, tags, channels);
-        form.setResponsiveSteps(new FormLayout.ResponsiveStep("0", 1), new FormLayout.ResponsiveStep("40rem", 2));
-        final VerticalLayout layout = new VerticalLayout(new H2("単一選択と複数選択"), form, result,
-            new Paragraph("表示密度（ListBox） — 選択操作のサンプルです。"), density);
-        layout.setPadding(false);
-        return layout;
-    }
-
-    /**
-     * メニュー操作、折りたたみ、アバター、アイコンとツールチップを試す。
-     *
-     * @return 標準の表示・操作部品の例
-     */
-    private VerticalLayout displayExamples() {
-        final Span result = new Span("メニューから操作を選択してください。");
-        result.setId("example-menu-result");
-        result.getElement().setAttribute("aria-live", "polite");
-        final MenuBar menu = new MenuBar();
-        menu.addItem("操作").getSubMenu().addItem("プレビュー", event -> result.setText("プレビューを選択しました。データは変更されません。"));
-        menu.addItem("ヘルプ", event -> result.setText("メニュー項目はクリックやキーボードで選べます。"));
-
-        // 人物表示と補助操作の例を組み合わせる。
-        final Avatar avatar = new Avatar("サンプル利用者");
-        final Button info = new Button("ヒント", VaadinIcon.INFO_CIRCLE.create(),
-            event -> Notification.show("標準アイコン付きボタンのサンプルです。"));
-        Tooltip.forComponent(info).setText("クリックすると通知を表示します");
-
-        // 補足情報は折りたたんで表示する。
-        final Accordion accordion = new Accordion();
-        accordion.setWidthFull();
-        accordion.add("この部品集について", new Paragraph("Vaadin標準コンポーネントの操作例です。"));
-        accordion.add("データの保存について", new Paragraph("入力内容はDBに保存されません。画面を再読み込みすると初期化されます。"));
-        final VerticalLayout layout = new VerticalLayout(new H2("表示と操作の部品"), new Paragraph("MenuBar"), menu, result,
-            new Paragraph("Avatar・Icon・Tooltip"), new HorizontalLayout(avatar, info), new Paragraph("Accordion"),
-            accordion);
         layout.setPadding(false);
         return layout;
     }
@@ -462,56 +444,80 @@ public class ComponentGalleryView extends VerticalLayout implements BeforeEnterO
     }
 
     /**
-     * Auraのカード・ボタンvariantを比較し、通知と確認操作を試す。
+     * 単一選択と複数選択の操作・選択結果表示を試す。
      *
-     * @return 標準スタイルを比較するカード群
+     * @return 標準の選択部品を並べたフォーム
      */
-    private FormLayout cardExamples() {
-        final Card actions = new Card();
-        actions.setTitle("操作の優先度");
-        actions.setSubtitle("標準・Primary・Tertiary・Error");
-        actions.addThemeVariants(CardVariant.ELEVATED);
-        final Button normal = new Button("標準", event -> Notification.show("標準ボタンを選びました。"));
-        final Button primary = new Button("確認する", VaadinIcon.CHECK.create(),
-            event -> Notification.show("確認しました。", 3000, Notification.Position.BOTTOM_START));
-        primary.setId("example-primary-action");
-        primary.addThemeVariants(ButtonVariant.PRIMARY);
-        final Button tertiary = new Button("補助操作", event -> Notification.show("補助操作を選びました。"));
-        tertiary.addThemeVariants(ButtonVariant.TERTIARY);
-        final Button danger = new Button("リセット", event -> {
-            final ConfirmDialog confirmation = new ConfirmDialog();
-            confirmation.setHeader("操作の確認サンプル");
-            confirmation.setText("この例では確認ダイアログだけを表示します。データは変更しません。");
-            confirmation.setCancelable(true);
-            confirmation.setCancelText("キャンセル");
-            confirmation.setConfirmText("確認しました");
-            confirmation.setConfirmButtonTheme("danger primary");
-            confirmation.open();
-        });
-        danger.addThemeVariants(ButtonVariant.ERROR);
-        final HorizontalLayout buttons = new HorizontalLayout(normal, primary, tertiary, danger);
-        buttons.setWrap(true);
-        actions.add(new Paragraph("重要な操作をPrimary、補助操作をTertiaryで表現します。"), buttons);
+    private VerticalLayout selectionExamples() {
+        final Select<String> priority = new Select<>();
+        priority.setLabel("優先度（Select）");
+        priority.setItems("低", "通常", "高");
+        priority.setValue("通常");
+        final MultiSelectComboBox<String> tags = new MultiSelectComboBox<>("タグ（MultiSelectComboBox）");
+        tags.setItems("画面", "入力", "検索", "通知");
+        tags.setClearButtonVisible(true);
+        tags.select("画面");
+        final CheckboxGroup<String> channels = new CheckboxGroup<>();
+        channels.setId("example-channels");
+        channels.setLabel("確認対象（CheckboxGroup）");
+        channels.setItems("デスクトップ", "モバイル", "キーボード");
+        final ListBox<String> density = new ListBox<>();
+        density.setItems("ゆったり", "標準", "コンパクト");
+        density.setValue("標準");
+        density.getElement().setAttribute("aria-label", "表示密度の選択例");
 
-        // 複数担当者の表示は標準AvatarGroupへ委ねる。
-        final Card team = new Card();
-        team.setTitle("レビューのサンプル");
-        team.setSubtitle("Outlined Card / AvatarGroup");
-        team.addThemeVariants(CardVariant.OUTLINED);
-        final AvatarGroup reviewers = new AvatarGroup(new AvatarGroup.AvatarGroupItem("サンプル A"),
-            new AvatarGroup.AvatarGroupItem("サンプル B"), new AvatarGroup.AvatarGroupItem("サンプル C"));
-        reviewers.setMaxItemsVisible(2);
-        team.add(new Paragraph("担当者のまとまりを表示。末尾の人数を開くと全員を確認できます。"), reviewers);
+        // 選択結果は読み上げ対象とし、表示順を固定する。
+        final Span result = new Span("確認対象: 未選択");
+        result.setId("example-selection-result");
+        result.getElement().setAttribute("aria-live", "polite");
+        channels.addValueChangeListener(event -> result.setText("確認対象: "
+            + (event.getValue().isEmpty() ? "未選択" : String.join("・", event.getValue().stream().sorted().toList()))));
+        final FormLayout form = new FormLayout(priority, tags, channels);
+        form.setResponsiveSteps(new FormLayout.ResponsiveStep("0", 1), new FormLayout.ResponsiveStep("40rem", 2));
+        final VerticalLayout layout = new VerticalLayout(new H2("単一選択と複数選択"), form, result,
+            new Paragraph("表示密度（ListBox） — 選択操作のサンプルです。"), density);
+        layout.setPadding(false);
+        return layout;
+    }
 
-        // 標準variantのカードと外観を比較する。
-        final Card plain = new Card();
-        plain.setTitle("シンプルなカード");
-        plain.setSubtitle("Default Card");
-        plain.add(new Paragraph("見出し・補足・本文・フッターを標準のslotで構成します。影や枠線はvariantで選択できます。"));
-        plain.addToFooter(new Span("右上のダークモードで明暗を比較できます。"));
-        final FormLayout cards = new FormLayout(actions, team, plain);
-        cards.setResponsiveSteps(new FormLayout.ResponsiveStep("0", 1), new FormLayout.ResponsiveStep("48rem", 2));
-        return cards;
+    /**
+     * 入力用途に合う標準fieldの制約と補助表示を試す。
+     *
+     * @return 数値・メール・パスワード・時刻の入力例
+     */
+    private VerticalLayout typedInputExamples() {
+        final EmailField email = new EmailField("メールアドレス（EmailField）");
+        email.setId("example-email");
+        email.setPlaceholder("sample@example.com");
+        email.setErrorMessage("メールアドレスの形式で入力してください。");
+        final PasswordField password = new PasswordField("パスワード（PasswordField）");
+        password.setHelperText("表示切替の確認用です。架空のパスワードを入力してください。");
+
+        // 整数・小数・時刻は、それぞれの標準fieldで入力を制約する。
+        final IntegerField quantity = new IntegerField("数量（IntegerField）");
+        quantity.setId("example-quantity");
+        quantity.setMin(1);
+        quantity.setMax(10);
+        quantity.setValue(1);
+        quantity.setStepButtonsVisible(true);
+        quantity.setHelperText("1〜10の整数");
+        quantity.setErrorMessage("1〜10の整数を入力してください。");
+        final NumberField temperature = new NumberField("温度（NumberField）");
+        temperature.setValue(22.5);
+        temperature.setStep(0.5);
+        temperature.setStepButtonsVisible(true);
+        temperature.setSuffixComponent(new Span("℃"));
+        final TimePicker time = new TimePicker("開始時刻（TimePicker）");
+        time.setStep(Duration.ofMinutes(30));
+        time.setValue(LocalTime.of(9, 0));
+
+        // 入力部品をレスポンシブに配置する。
+        final FormLayout form = new FormLayout(email, password, quantity, temperature, time);
+        form.setResponsiveSteps(new FormLayout.ResponsiveStep("0", 1), new FormLayout.ResponsiveStep("40rem", 2));
+        final VerticalLayout layout = new VerticalLayout(new H2("用途に合った入力欄"),
+            new Paragraph("入力形式、増減ボタン、接尾辞、パスワードの表示切替を試せます。"), form);
+        layout.setPadding(false);
+        return layout;
     }
 
     /**
@@ -543,6 +549,7 @@ public class ComponentGalleryView extends VerticalLayout implements BeforeEnterO
         ACTIVE("確認中"),
         /** 確認が完了した状態。 */
         DONE("完了");
+        /** 状態の選択肢と一覧に表示する日本語名。 */
         private final String label;
 
         /**
