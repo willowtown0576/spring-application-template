@@ -1,6 +1,6 @@
-# spring-application-starter
+# spring-application-template
 
-Java 25／Spring Boot／jte／htmx／Bootstrap／PostgreSQLで、小規模〜中規模の業務システムを開発するためのstarter。少人数でも品質を維持できるよう、認可、DB、テスト、build、資料生成を共通の手順に揃える。案件では、この基盤に業務固有の機能を追加する。
+Java 25／Spring Boot／jte／htmx／Bootstrap／PostgreSQLで、小規模〜中規模の業務システムを開発するためのtemplate。少人数でも品質を維持できるよう、認可、DB、テスト、build、資料生成を共通の手順に揃える。案件では、この基盤に業務固有の機能を追加する。
 
 ## 最初に動かす
 
@@ -58,7 +58,7 @@ flowchart LR
 
 案件の開発を始める際は、[案件開始チェックリスト](docs/project-adoption.md)を使用する。名称・package、sample、認証と権限、DB、UI／API、CI・配布・運用の変更箇所と完了条件をまとめている。[自動化の選択肢](docs/project-adoption.md#自動化の選択肢未採用)は比較案であり、採用後に実装する。
 
-1. [ADR](docs/decisions.md)と[開発ガイド](docs/developer-guide.md)を読み、対象featureの公開契約と制約を確認する。
+1. 作業目的ごとに既定branchから専用branchを作成する。[ADR](docs/decisions.md)と[開発ガイド](docs/developer-guide.md)を読み、対象featureの公開契約と制約を確認する。
 2. 設計判断が変わる場合はADRを先に追加する。
 3. 公開API、domain／UseCase、adapterを実装する。DB変更は新しいFlyway migrationを追加する。
 4. 境界値、認可、transaction等、変更に対応するtestを追加・更新する。

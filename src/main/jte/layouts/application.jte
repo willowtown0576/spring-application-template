@@ -12,7 +12,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-header" content="${page.csrfHeader()}">
         <meta name="htmx-config" content='{"historyCacheSize":0,"allowEval":false,"includeIndicatorStyles":false}'>
-        <title>${title} | Spring Application</title>
+        <title>${title} | Spring Application Template</title>
         <link rel="stylesheet" href="${page.contextPath()}/vendor/bootstrap.min.css">
         <link rel="stylesheet" href="${page.contextPath()}/ui/application.css">
         <script defer src="${page.contextPath()}/vendor/htmx.min.js"></script>
@@ -27,7 +27,7 @@
                     <div class="d-flex flex-column h-100 p-3 p-lg-4">
                         <div class="d-flex align-items-center justify-content-between gap-3 mb-lg-5">
                             <a class="text-decoration-none text-white" href="${page.contextPath()}/">
-                                <span class="d-block fw-bold fs-5">Spring Application<span class="text-primary">.</span></span>
+                                <span class="d-block fw-bold fs-5">Spring Application Template<span class="text-primary">.</span></span>
                                 <span class="small text-white-50">業務ワークスペース</span>
                             </a>
                             <button id="starter-menu-toggle" type="button" class="btn btn-sm btn-outline-light d-lg-none"
@@ -59,7 +59,7 @@
                         </nav>
                         <div class="d-none d-lg-block mt-auto pt-5">
                             <div class="border-top border-secondary pt-4">
-                                <p class="small text-white-50 mb-1">Spring Application</p>
+                                <p class="small text-white-50 mb-1">Spring Application Template</p>
                                 <p class="small text-white-50 mb-0">日々の業務を、ひとつの場所に。</p>
                             </div>
                         </div>

@@ -275,7 +275,7 @@ tasks.build {
 
 // Documentation uses a dedicated temporary database in an isolated Compose project.
 val docsPassword = UUID.randomUUID().toString()
-val docsDatabaseProject = "starter-docs-db-" + UUID.randomUUID().toString().take(8)
+val docsDatabaseProject = "template-docs-db-" + UUID.randomUUID().toString().take(8)
 fun docsCompose(projectName: String, vararg arguments: String): String {
     val execution = providers.exec {
         isIgnoreExitValue = true
@@ -293,7 +293,7 @@ fun docsCompose(projectName: String, vararg arguments: String): String {
 val documentationImage = tasks.register<Exec>("documentationImage") {
     description = "Builds the pinned documentation toolchain image."
     group = "documentation"
-    commandLine("docker", "build", "-t", "spring-application-starter-docs:1", "docker/docs")
+    commandLine("docker", "build", "-t", "spring-application-template-docs:1", "docker/docs")
 }
 
 var docsDatabaseStarted = false

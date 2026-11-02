@@ -1,4 +1,4 @@
-name: spring-application-starter
+name: spring-application-template
 desc: Application database
 docPath: build/documentation/database
 er:

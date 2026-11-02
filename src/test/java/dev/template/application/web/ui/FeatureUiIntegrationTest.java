@@ -153,6 +153,7 @@ class FeatureUiIntegrationTest {
             final BrowserContext context = browser.newContext()) {
             final Page page = context.newPage();
             page.navigate("http://127.0.0.1:" + port + "/");
+            assertThat(page).hasTitle("ホーム | Spring Application Template");
             page.screenshot(new Page.ScreenshotOptions().setPath(Path.of("build/reports/ui/welcome.png")));
             page.locator("#welcome-gallery").click();
             assertThat(page.locator("#sample-count")).hasText("3件");

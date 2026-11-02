@@ -34,7 +34,7 @@ services:
       retries: 30
 
   docs-tools:
-    image: spring-application-starter-docs:1
+    image: spring-application-template-docs:1
     profiles: [docs]
     build:
       context: docs

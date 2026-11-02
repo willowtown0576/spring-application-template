@@ -140,7 +140,7 @@ Spring標準DelegatingSecurityContextCallableが、正常・例外・nested実�
 
 ```bash
 ./gradlew bootJar
-java -jar build/libs/spring-application-starter-0.1.0-SNAPSHOT.jar
+java -jar build/libs/spring-application-template-0.1.0-SNAPSHOT.jar
 ```
 
 上記は初期versionの例。実際のfile名はGradle project name／versionに従う。案件の認証実装を組み込んだうえで、起動前に既存PostgreSQLへの3つのSPRING_DATASOURCE_*と採用した認証方式の設定・secretを実行環境から与える。開発用のAPP_USER_*は不要。認証Beanがなければ起動に失敗する。JARには開発用Compose連携が含まれず、Flywayが接続先へmigrationを適用する。適用権限、backup、既存schemaへの影響は配置先で管理する。

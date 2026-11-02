@@ -2,7 +2,7 @@ spring:
   autoconfigure:
     exclude: org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
   application:
-    name: spring-application-starter
+    name: spring-application-template
   batch:
     job:
       enabled: false
