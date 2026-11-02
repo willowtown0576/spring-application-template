@@ -28,8 +28,7 @@ local fileはUTF-8 Java Properties形式。値はJava Propertiesのliteralとし
 | URL | 用途・必要な設定 |
 |---|---|
 | `/` | 匿名welcome |
-| `/components` | 匿名Vaadin部品集。変更はView内だけ |
-| `/theme-comparison` | 匿名Aura／Lumo比較。各テーマで同じ部品集を操作 |
+| `/components` | 匿名部品集。変更はブラウザー内だけ |
 | `/features` | DB作成・UUID検索。未ログインなら/loginへ誘導 |
 | `/api/v1/features` | 認証必須REST。正常系はintegrationTestでも確認可能 |
 | `/actuator/health` | 匿名health。詳細は非公開 |

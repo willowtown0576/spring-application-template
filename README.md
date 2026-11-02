@@ -1,10 +1,10 @@
 # spring-application-starter
 
-Java 25／Spring Boot／Vaadin／PostgreSQLで、小規模〜中規模の業務システムを開発するためのstarter。少人数でも品質を維持できるよう、認可、DB、テスト、build、資料生成を共通の手順に揃える。案件では、この基盤に業務固有の機能を追加する。
+Java 25／Spring Boot／jte／htmx／Bootstrap／PostgreSQLで、小規模〜中規模の業務システムを開発するためのstarter。少人数でも品質を維持できるよう、認可、DB、テスト、build、資料生成を共通の手順に揃える。案件では、この基盤に業務固有の機能を追加する。
 
 ## 最初に動かす
 
-必要なものは **JDK 25、Git、稼働中のDocker、IDE**。GradleはWrapper、Node／npmはVaadinのbuild toolingが管理する。初回は依存、image、browserの取得にnetwork接続が必要になる。
+必要なものは **JDK 25、Git、稼働中のDocker、IDE**。GradleはWrapper、UI資産はGradleで依存を取得し、JARへ同梱する。Node／npmは不要。初回は依存、image、browserの取得にnetwork接続が必要になる。
 
 1. repositoryを取得し、root directoryを開く。
 2. `config/local-env.properties.example` を `config/local-env.properties` へコピーする。
@@ -17,9 +17,8 @@ Java 25／Spring Boot／Vaadin／PostgreSQLで、小規模〜中規模の業務�
 
 Windowsでは `gradlew.bat` を使う。bootRunは開発用認証を既定で有効にし、開発PostgreSQLの起動、Flyway migration、application起動まで実行する。配布JAR／OCIでは開発用認証は既定で無効となり、案件の認証実装・設定が必要。認証未設定なら起動を失敗させる。
 
-**[http://localhost:8080/](http://localhost:8080/)** にwelcome、**[/components](http://localhost:8080/components)** にVaadin部品集を表示する。匿名で一覧・入力・Dialog・明暗表示などを試せる。部品集の編集はView内のsample dataだけに反映する。
+**[http://localhost:8080/](http://localhost:8080/)** にwelcome、**[/components](http://localhost:8080/components)** に画面部品集を表示する。匿名で一覧・詳細・入力・削除確認・明暗表示などを試せる。部品集の編集はブラウザー内のsample dataだけに反映する。
 
-**[/theme-comparison](http://localhost:8080/theme-comparison)** では同じ部品集をAuraとLumoで並べて比較できる。明暗切替と各テーマでの操作に対応する。
 
 DB連携例 `/features` とREST `/api/v1/features` は認証必須。`/login` で設定した利用者としてログインできる。未認証のUIはloginへ誘導し、RESTは401を返す。作成は `feature:write`、参照は `feature:read` が必要。Batch／Schedulerは明示的なシステム主体で同じAPIを呼ぶ。詳細は[認証とシステム実行](docs/operations.md#authentication)を参照する。
 
@@ -29,7 +28,7 @@ DB連携例 `/features` とREST `/api/v1/features` は認証必須。`/login` �
 
 **Feature単位のModular Monolith＋Command／Query分離**を採用する。正しさ、型安全性、データ整合性、securityを優先し、実装手段はJDK・Spring・導入済みlibraryの順に選択する。
 
-- REST、Vaadin、Batch、Schedulingは業務機能への入口となるadapter。featureの公開APIだけを呼ぶ。
+- REST、MVC画面、Batch、Schedulingは業務機能への入口となるadapter。featureの公開APIだけを呼ぶ。
 - Commandは認可・transaction境界を持ち、UseCaseとdomainで業務規則を扱う。UseCaseがRepository Portを所有し、jOOQ adapterが実装する。
 - Queryはread-only transaction内でDataSourceを呼び、参照結果を返す。
 - feature間の依存は公開APIに限定する。他featureの更新は公開Command API、参照JOINは必要に応じてDBで行う。
@@ -91,8 +90,11 @@ flowchart LR
 | 配置                                                                                | 内容                                               |
 | ----------------------------------------------------------------------------------- | -------------------------------------------------- |
 | `src/main/java/dev/template/application/feature/`                                   | 公開APIと内部のCommand／Query／domain／SQL adapter |
-| `src/main/java/dev/template/application/web/`                                       | RESTとVaadin                                       |
+| `src/main/java/dev/template/application/web/`                                       | RESTとMVC画面                                       |
 | `src/main/java/dev/template/application/{common,security,logging,http,scheduling}/` | 共通技術基盤                                       |
+| `src/main/jte/layouts/`・`components/` | 共通レイアウト・画面部品 |
+| `src/main/jte/pages/` | 機能別画面と画面固有の断片。公開部品集はsamples配下 |
+| `src/main/resources/static/ui/` | 共通のブラウザー動作と補助style |
 | `src/main/resources/db/migration/`                                                  | Flyway schema変更履歴                              |
 | `src/test/java/`                                                                    | 全テスト。JUnit Tagでtaskを分離                    |
 | `codegen/`                                                                          | 配布物から独立した生成ツール                       |

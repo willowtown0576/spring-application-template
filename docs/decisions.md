@@ -24,7 +24,7 @@
 | [ADR-008](#adr-008) | Flyway・DB環境・jOOQ生成 |
 | [ADR-009](#adr-009) | RESTとAPI versioning |
 | [ADR-010](#adr-010) | 認証・型付き認可 |
-| [ADR-011](#adr-011) | Vaadin標準UIと公開sample |
+| [ADR-011](#adr-011) | 旧UIと公開sample（後継ADR参照） |
 | [ADR-012](#adr-012) | HTTP・設定・ログ・運用 |
 | [ADR-013](#adr-013) | Batch・Scheduling・任意機能 |
 | [ADR-014](#adr-014) | テストとコード品質 |
@@ -33,7 +33,7 @@
 | [ADR-017](#adr-017) | 完成品の資料とAIの作業規則 |
 | [ADR-018](#adr-018) | デフォルト認証とシステム実行主体 |
 | [ADR-019](#adr-019) | 非推奨APIの禁止 |
-| [ADR-020](#adr-020) | AuraとLumoの比較 |
+| [ADR-020](#adr-020) | 旧テーマ比較（廃止） |
 | [ADR-021](#adr-021) | 標準認証の差し替えと境界の検証 |
 | [ADR-022](#adr-022) | 案件拡張を妨げない生成と検証 |
 | [ADR-023](#adr-023) | 資料の正本統合と関係に集中したER図 |
@@ -41,6 +41,9 @@
 | [ADR-025](#adr-025) | Gradleコマンドの責務を分離する |
 | [ADR-026](#adr-026) | 開発用認証と案件の認証を分離する |
 | [ADR-027](#adr-027) | メンバー順の自動整列とフィールドJavaDoc |
+| [ADR-028](#adr-028) | 標準HTMLによるサーバー描画と部分更新 |
+| [ADR-029](#adr-029) | 業務画面の共通レイアウトと視覚的な階層 |
+| [ADR-030](#adr-030) | jteの共通部品と機能別画面の配置 |
 
 <a id="adr-001"></a>
 ## ADR-001: 完成した技術基盤と依存方針
@@ -58,34 +61,34 @@
 <a id="adr-002"></a>
 ## ADR-002: 技術スタックとversion管理
 
-**状態:** Accepted
+**状態:** Accepted UI・frontend・UI認証に関する後継判断は[ADR-028](#adr-028)。
 
 **背景:** 少人数で保守できる成熟した統合基盤と、再現可能な依存解決が必要である。
 
-**決定:** Java 25、Gradle Kotlin DSL／Wrapper／Toolchain／Version Catalog、Spring Boot 4.1系、Vaadin 25／Flow、PostgreSQL、Flyway、jOOQを採用する。Spring MVC、Security／Method Security、Jakarta Validation、Batch JDBC、Scheduling、HTTP Service Client／RestClient、Actuator／Micrometer、Modulithを標準とする。品質・資料ツールは[技術スタック](technology-stack.md)に示す。
+**決定:** Java 25、Gradle Kotlin DSL／Wrapper／Toolchain／Version Catalog、Spring Boot 4.1系、jte／htmx／Bootstrap／Alpine.js、PostgreSQL、Flyway、jOOQを採用する。Spring MVC、Security／Method Security、Jakarta Validation、Batch JDBC、Scheduling、HTTP Service Client／RestClient、Actuator／Micrometer、Modulithを標準とする。品質・資料ツールは[技術スタック](technology-stack.md)に示す。
 
-JavaはToolchain、GradleはWrapperと配布SHA、明示dependency／pluginはCatalog、Spring系はBoot BOM、Vaadin系はVaadin BOM、Modulithは専用BOM、application versionはGradle project versionで管理する。codegenもBoot BOMを使う。Docker imageは固定tagを使い `latest` を禁止する。
+JavaはToolchain、GradleはWrapperと配布SHA、明示dependency／pluginはCatalog、Spring系はBoot BOM、Modulithは専用BOM、application versionはGradle project versionで管理する。codegenもBoot BOMを使う。Docker imageは固定tagを使い `latest` を禁止する。
 
 案件要件に応じて採用するもの: JPA／Hibernate ORM、Redis、Kafka、RabbitMQ、JMS、Quartz、Spring Integration、Mail、OAuth2／OIDC／SAML／LDAPの認証方式、React／Angular／Vue、TypeScript中心のfrontend、汎用master import・cache・retry・workflow基盤、巨大なcustom exception階層。Jakarta Validationの実装であるHibernate ValidatorはORMとは別である。
 
-**影響:** GradleはWrapper、frontendの実行環境はVaadinのbuild toolingで管理する。dependency追加やmajor upgradeは必要性・互換性を確認する。Renovateは更新提案を行い、mergeは互換性の確認後に行う。
+**影響:** GradleはWrapper、UI資産は固定したWebJarsからGradleで同梱する。dependency追加やmajor upgradeは必要性・互換性を確認する。Renovateは更新提案を行い、mergeは互換性の確認後に行う。
 
 <a id="adr-003"></a>
 ## ADR-003: Gradle・開発環境・配布境界
 
-**状態:** Accepted
+**状態:** Accepted UI・frontend・UI認証に関する後継判断は[ADR-028](#adr-028)。
 
 **背景:** 実行手順と環境差を減らし、配布物をapplicationの実行に必要な構成へ限定する。
 
-**決定:** 開発者向け操作をGradleへ集約する。hostにはJDK 25、Git、Docker、IDEを用意し、applicationはhost JVMで起動する。開発環境はhost JVMを標準とする。VaadinのNode等はbuild toolingが管理する。
+**決定:** 開発者向け操作をGradleへ集約する。hostにはJDK 25、Git、Docker、IDEを用意し、applicationはhost JVMで起動する。開発環境はhost JVMを標準とする。UI資産はGradleで取得・同梱する。
 
 Docker設定は `docker/`、Composeは `docker/compose.yaml` 一つとし、`dev`／`docs` profileで用途を分ける。Composeの用途は一つのfile内のprofileで切り替える。開発PostgreSQLはloopbackの動的port、persistent named volumeを使用する。BootのCompose連携で起動・停止し、dataは保持する。passwordは必須設定とする。
 
 `bootRun` は任意のGit管理外 `config/local-env.properties` をUTF-8 Java Propertiesとして読み、環境変数へ注入する。既存環境変数が優先される。読み取りにはJDKのPropertiesを使い、fileはbootRunのローカル設定として扱う。
 
-applicationは `src/main/java`、全testは `src/test/java`、生成ツールは独立 `codegen` subprojectに置く。生成jOOQはmainでcompileし配布する。test、codegen実行class／専用依存、開発用Compose／Vaadin devは配布JARの収録対象外とする。`verifyProductionJar` をquality gateにする。
+applicationは `src/main/java`、全testは `src/test/java`、生成ツールは独立 `codegen` subprojectに置く。生成jOOQはmainでcompileし配布する。test、codegen実行class／専用依存、開発用Composeは配布JARの収録対象外とする。`verifyProductionJar` をquality gateにする。
 
-生成source／資料／reportは `build/`、subproject出力は `codegen/build/` へ置き、Git管理外とする。Vaadinが生成するfrontend資産と `target/vaadin-dev-server-settings.json` も管理対象外とする。
+生成source／資料／reportは `build/`、subproject出力は `codegen/build/` へ置き、Git管理外とする。jte生成sourceと静的資産の展開先もbuild配下とする。
 
 **影響:** 初回buildにはnetworkとDockerが必要である。案件開始時はproject name、group、base package `dev.template.application`、application nameを一括置換する。専用initializerは具体的な必要性に基づいて採用する。
 
@@ -102,7 +105,7 @@ module間の参照は公開APIに限定し、依存関係は非循環とする�
 
 `public` は外部公開またはJavaのpackage間連携が必要な型に限定する。Beanの可視性は利用範囲に応じて決める。internal実装はpackage-privateを優先し、`protected` は意図した継承に限定する。Javaのpublicなinternal型も、Modulith上は内部実装として扱う。
 
-**影響:** REST／Vaadin／Batch／Schedulingはadapterとして公開APIを使う。`common` はResult・Clock・ID生成を持ち、他application moduleから独立した共通契約を定義する。生成SQL型の親 `jooq` はopen technical moduleとし、参照をinfrastructureに制限する。[依存図](architecture.md)を参照する。
+**影響:** REST／MVC画面／Batch／Schedulingはadapterとして公開APIを使う。`common` はResult・Clock・ID生成を持ち、他application moduleから独立した共通契約を定義する。生成SQL型の親 `jooq` はopen technical moduleとし、参照をinfrastructureに制限する。[依存図](architecture.md)を参照する。
 
 <a id="adr-005"></a>
 ## ADR-005: Command／Queryとトランザクション
@@ -140,7 +143,7 @@ application Beanはcomponent scanとconstructor injectionで登録する。UseCa
 - null Param自体とnull検索IDはprogramming errorとして拒否する。
 - `FeatureCommandsImpl`／`FeatureQueriesImpl`、`JooqFeatureRepository`／`JooqFeatureDataSource` を用いる。DataSourceは内部 `FeatureData` を返す。
 
-**影響:** RESTはFailureをHTTP status／ProblemDetailへ、Vaadinは利用者向け表示へ、BatchはJobの意味に応じた終了状態へ変換する。技術例外はrollback／Job failureと共通error handlingの対象となる。
+**影響:** RESTはFailureをHTTP status／ProblemDetailへ、MVC画面は利用者向け表示へ、BatchはJobの意味に応じた終了状態へ変換する。技術例外はrollback／Job failureと共通error handlingの対象となる。
 
 <a id="adr-007"></a>
 ## ADR-007: ID・時刻・データ整合性
@@ -198,7 +201,7 @@ pagination／sortはQueryのtyped conceptとする。offset、Slice、Page、key
 <a id="adr-010"></a>
 ## ADR-010: 認証・型付き認可
 
-**状態:** Superseded — [ADR-018](#adr-018)。以下は従来の判断。
+**状態:** Superseded — [ADR-018](#adr-018)。以下は従来の判断。 UI・frontend・UI認証に関する後継判断は[ADR-028](#adr-028)。
 
 **背景:** 認証方式は案件で選択し、認証構成の有無にかかわらず業務操作に認可を適用する。
 
@@ -210,26 +213,20 @@ pagination／sortはQueryのtyped conceptとする。offset、Slice、Page、key
 
 Spring Security型の利用範囲はsecurityと認可adapterとする。操作者が必要ならsecurity adapterでActor／UserId等へ変換する。Batch／Schedulingはシステム実行主体として認証・認可する。
 
-CSRF保護を保持し、Vaadin内部通信は標準VaadinSecurityConfigurerに委ねる。未認証401、認証済み権限不足／CSRF拒否403。Actuatorはhealthを詳細なし匿名公開、info／metricsをops:readで保護する。その他endpointの公開は運用要件で選択する。
+CSRF保護を保持し、UIのtoken受け渡しはADR-028に従う。未認証401、認証済み権限不足／CSRF拒否403。Actuatorはhealthを詳細なし匿名公開、info／metricsをops:readで保護する。その他endpointの公開は運用要件で選択する。
 
 **影響:** 認証接続前の `/features` とRESTの401は正しい動作となる。正常系は配布されないtest専用認証で検証する。認証追加時にも直接Command／Query呼び出しの認可を維持する。
 
 <a id="adr-011"></a>
-## ADR-011: Vaadin標準UIと公開sample
+## ADR-011: 旧UIと公開sample
 
-**状態:** Accepted
+**状態:** Superseded — [ADR-028](#adr-028)。
 
-**背景:** 初回起動時から完成した画面と部品の使い方を確認できる必要がある。
+**背景:** 初回起動時から共通画面と部品の使い方を確認できる必要がある。
 
-**決定:** Vaadin core／FlowとSpring連携を使用する。Viewは `web.ui` に置き、業務操作は公開APIへ委譲する。Vaadin型の利用範囲はweb.uiとし、標準依存はVaadinの無償core componentに限定する。
+**決定:** サーバー側の画面componentと標準テーマで公開home・部品集・認証必須のDB連携sampleを構成していた。業務操作はfeature公開APIへ委譲する。
 
-`/` はwelcome、`/components` は部品集として匿名公開し、`/features` は認証必須のDB作成・ID検索例とする。部品集のサンプルはView内Listに保持する。画面内連番の行recordと入力recordを分け、編集時のIDを維持する。パスワード入力例は架空値用とし、入力値の利用範囲は当該入力欄に限定する。
-
-Aura既定theme、AppLayout／SideNav、Card、標準Button／Grid variantを使う。装飾と配色はVaadin提供のstyleに統一する。FormLayout／AppLayout／MasterDetailLayoutの標準responsive機能を使い、Page.setColorSchemeで現在のブラウザーUIの明暗表示を切り替える。
-
-部品集は一覧検索・sort・filter、Binder／入力validation、Dialog／ConfirmDialog、Tabs、通知、ProgressBar、Details、日付・数値・時刻・メール・パスワード、単一／複数選択、Checkbox、Accordion、MenuBar、Avatar、Tooltip、Icon、一覧詳細、カードとボタンのvariantを操作できる例とする。
-
-**影響:** 標準precompiled frontendを優先し、production frontendをJARへ含める。Vaadin devはdevelopmentOnly。Playwrightをtest専用とし、Chromiumで公開導線、DB画面、拒否、明暗・mobile表示を検証する。
+**影響:** UI技術と画面構成はADR-028、共通layoutは[ADR-029](#adr-029)、template配置は[ADR-030](#adr-030)を参照する。
 
 <a id="adr-012"></a>
 ## ADR-012: HTTP・設定・ログ・運用
@@ -351,11 +348,11 @@ AIはREADME、AGENTS、ADRと対象領域の資料・実装を読み、既存変
 <a id="adr-018"></a>
 ## ADR-018: デフォルト認証と利用者・システム実行主体
 
-**状態:** Accepted。開発用利用者の有効化・置換条件は[ADR-026](#adr-026)で更新。
+**状態:** Accepted。開発用利用者の有効化・置換条件は[ADR-026](#adr-026)で更新。 UI・frontend・UI認証に関する後継判断は[ADR-028](#adr-028)。
 
 **背景:** Web、Batch、Schedulerから同じ公開Command／Queryを安全に呼ぶため、認証と実行主体を標準で用意する必要がある。
 
-**決定:** ADR-010の認証方式未提供方針を置き換える。Spring Securityのフォーム認証とVaadin LoginForm、標準logoutを提供する。利用者は明示設定したAPP_USER_NAME／APP_USER_PASSWORDで作成し、passwordは実行環境から明示設定する。passwordは12文字以上、BCryptの上限72 UTF-8 bytes以下を要求し、起動時にencodeして標準InMemoryUserDetailsManagerへ登録する。利用者名のsystem: prefixはシステム主体用に予約する。設定のtoStringはsecretを伏せる。設定不足はstartup failureとする。標準利用者にはfeature:read／writeを付与し、運用権限はAPP_USER_OPERATIONS_READ=trueの場合だけ付与する。利用者管理・永続ユーザーDBは標準に含めず、複数ユーザーや外部認証が必要な案件ではUserDetailsService／認証providerを置き換える。
+**決定:** ADR-010の認証方式未提供方針を置き換える。Spring Securityのフォーム認証とHTML loginフォーム、標準logoutを提供する。利用者は明示設定したAPP_USER_NAME／APP_USER_PASSWORDで作成し、passwordは実行環境から明示設定する。passwordは12文字以上、BCryptの上限72 UTF-8 bytes以下を要求し、起動時にencodeして標準InMemoryUserDetailsManagerへ登録する。利用者名のsystem: prefixはシステム主体用に予約する。設定のtoStringはsecretを伏せる。設定不足はstartup failureとする。標準利用者にはfeature:read／writeを付与し、運用権限はAPP_USER_OPERATIONS_READ=trueの場合だけ付与する。利用者管理・永続ユーザーDBは標準に含めず、複数ユーザーや外部認証が必要な案件ではUserDetailsService／認証providerを置き換える。
 
 Webはsession認証、保護UIはloginへ誘導する。REST／Actuator／API資料は未認証401を維持する。CSRFとsession fixation対策を標準機構で維持し、logout後はsessionを無効化する。認可はCommand／Queryで引き続きAuthorityを要求する。feature所有の権限enum、標準meta-annotation template、運用権限の分離、最小限のActuator公開という認可規約を維持する。
 
@@ -365,7 +362,7 @@ Webはsession認証、保護UIはloginへ誘導する。REST／Actuator／API資
 
 **影響:** 実フォームlogin・失敗・logout、REST session認証とCSRF、BatchのCommand呼び出しとrollback、scheduler workerのQueryと書き込み拒否、context復元を検証する。認証設定は各環境で供給し、test credentialはtest用classpathに限定する。認証基盤を変更してもAuthorityとCommand／Query境界を維持する。
 
-参照: [Vaadin Security Configurer](https://vaadin.com/docs/latest/flow/security/vaadin-security-configurer)、[Spring Security concurrency](https://docs.spring.io/spring-security/reference/features/integrations/concurrency.html)。
+参照: [Spring Security concurrency](https://docs.spring.io/spring-security/reference/features/integrations/concurrency.html)。
 
 <a id="adr-019"></a>
 ## ADR-019: 非推奨APIの禁止
@@ -379,28 +376,26 @@ Webはsession認証、保護UIはloginへ誘導する。REST／Actuator／API資
 **影響:** 通常のtest／build／CIで検出する。生成sourceも同じcompile設定を受けるため、生成器との互換性を維持する。検出対象は本projectのJava sourceからのAPI参照とする。
 
 <a id="adr-020"></a>
-## ADR-020: AuraとLumoの比較
+## ADR-020: 旧テーマ比較
 
-**状態:** Accepted
+**状態:** Superseded — [ADR-028](#adr-028)。
 
-**背景:** 同じ画面部品を操作しながら、標準テーマの外観を比較できる必要がある。
+**背景:** 同じ部品を操作しながら複数の標準テーマを比較する必要があった。
 
-**決定:** 通常画面はAuraを維持し、匿名公開の `/theme-comparison` にAuraとLumoの比較を用意する。既存の部品集をlayoutなしの `/theme-preview` でも公開し、別documentの同一origin iframeへ表示する。AppShellConfiguratorはpreviewの固定query値に応じ、Vaadin提供のAuraまたはLumo stylesheetを一つだけ読み込む。画面の装飾はVaadin標準styleとする。
+**決定:** 独立したdocumentで同じ部品集を表示し、明暗切替とテーマの外観を比較する構成としていた。
 
-比較画面は明暗を共通操作で切り替え、狭い画面では縦に配置する。各previewの操作・sample dataは独立し、明暗切替による再読み込みで初期化する。UI filter chainのframe制限はSAMEORIGINとし、他originからの埋め込みを拒否する。REST／Actuator／API資料の制限は維持する。
-
-**影響:** 共通の部品集を使い、全タブを両テーマで試せる。実browserでstylesheetの分離、操作、明暗、mobile表示を検証する。
+**影響:** テーマ比較画面は廃止する。画面の外観と明暗表示は[ADR-029](#adr-029)の共通layoutで統一する。
 
 <a id="adr-021"></a>
 ## ADR-021: 標準認証の差し替えと境界の検証
 
-**状態:** Accepted。開発用利用者の有効化・置換条件は[ADR-026](#adr-026)で更新。
+**状態:** Accepted。開発用利用者の有効化・置換条件は[ADR-026](#adr-026)で更新。 UI・frontend・UI認証に関する後継判断は[ADR-028](#adr-028)。
 
 **背景:** 標準認証の置換条件はBootのauto-configurationで評価する必要がある。ブラウザーからのREST操作には実際のCSRF token受け渡しが必要であり、context path配下への配置も考慮する。認可・transactionの両方を書き忘れた実装や、非推奨宣言によるcompiler警告抑制も品質検査の対象とする。
 
 **決定:** LocalAuthenticationConfigurationをBootのAutoConfiguration.importsで登録し、利用者のUserDetailsService定義後に条件評価する。登録順の制御はBootのauto-configuration機構に委ねる。
 
-REST・API資料・UIのCSRF設定にはSpring Security標準のspa()を使用する。XSRF-TOKEN cookieとX-XSRF-TOKEN headerを使用し、springdocのCSRF連携を有効にする。login／logoutでtokenを更新し、Vaadin内部通信の扱いはVaadinSecurityConfigurerに委ねる。CSRF保護を有効に保つ。
+REST・API資料・UIのCSRF設定にはSpring Security標準のspa()を使用する。XSRF-TOKEN cookieとX-XSRF-TOKEN headerを使用し、springdocのCSRF連携を有効にする。login／logoutでtokenを更新し、UIのtoken受け渡しはADR-028に従う。CSRF保護を有効に保つ。
 
 RESTのLocationはServletUriComponentsBuilderで現在のrequestから生成する。OpenAPIのserver URLはspringdocの標準生成を使い、context pathを含む配置先を反映する。proxy配下のforwarded headerは信頼境界を確認して運用設定する。
 
@@ -494,6 +489,52 @@ releaseArtifactsはJAR・資料の生成と収集を担当する。CIとrelease�
 
 初期化に順序依存がある場合はconstructorまたはinitializerで代入順を明示する。Sort Membersはenum定数も整列するため、宣言順に意味のあるenumを含むfileでは理由を記した `@SortMembers:doNotSortFields=true` を使用し、フィールドを手動で規約順に配置する。この場合もDeclarationOrderとJavaDoc検査を適用する。
 
-**影響:** method・nested typeも標準ソーターの対象になる。ソート時は初期化の副作用・参照順、enumのvalues／ordinalと表示順をreviewし、既存の動作testを維持する。部品集のStatusは未着手・確認中・完了の表示順を保持するためfile単位のフィールドソート例外とする。
+**影響:** method・nested typeも標準ソーターの対象になる。ソート時は初期化の副作用・参照順、enumのvalues／ordinalと表示順をreviewし、既存の動作testを維持する。
 
 参照: [Spotless Eclipse Sort Members](https://github.com/diffplug/spotless/blob/gradle/8.10.2/plugin-gradle/README.md#eclipse-jdt)、[DeclarationOrder](https://checkstyle.org/checks/coding/declarationorder.html)、[JavadocVariable](https://checkstyle.org/checks/javadoc/javadocvariable.html)。
+
+
+<a id="adr-028"></a>
+## ADR-028: 標準HTMLによるサーバー描画と部分更新
+
+**状態:** Accepted。ADR-002／003／010／011／018／020／021のUI・frontend build・UI認証に関する判断を更新する。旧UIとテーマ比較は本判断で置き換える。
+
+**背景:** 検索一覧・詳細・入力フォームを中心とする業務画面を、商用UI製品の契約に依存せず構築する。業務処理からUI技術を分離し、外観と操作を共通化する。
+
+**決定:** Spring MVC＋jte＋htmx＋Bootstrapを採用し、ブラウザー内で完結する対話処理にAlpine.jsを使用する。web.uiのControllerはfeature公開Command／Queryを呼び、型付き表示モデルをjteへ渡す。RESTは外部連携用として維持する。Spring標準のpath predicateでAPI version解決を/api/配下に限定し、HTML画面と静的資産にはversionを要求しない。業務判断・認可・transactionは既存の公開API境界に保持する。
+
+jteはGradle pluginでJava sourceへ生成してcompileし、配布JARにも収録する。生成source・classはbuild配下に置く。Bootstrap・htmx・Alpine.jsはVersion Catalogで固定したWebJarsを用い、Gradleで必要な配布資産のみbuild配下へ展開し、静的資産としてJARに同梱する。ブラウザーのCDN接続、Node／npmを起動条件にしない。
+
+共通jte layout、入力部品、通知で画面構造を揃え、Bootstrap標準class・variantを使用する。固有CSSは共通の動作支援に限定する。検索一覧・詳細・入力・行単位編集は標準HTMLで表現し、htmxは通信を伴う部分更新、Alpineは画面内の一時状態を扱う。同じ部品の開閉・状態をBootstrap JSとAlpineの両方で管理しない。htmxの置換領域内のAlpine状態は再初期化されるため、保持する状態は置換領域外へ配置する。
+
+UIはSpring Securityのフォーム認証・session・CSRFを使用する。通常フォームはCSRF hidden field、htmxはSPA用XSRF-TOKEN cookieの値をX-XSRF-TOKEN headerへ設定する。REST／SwaggerのSPA用CSRF設定は維持する。htmxの未認証応答はHX-Redirectでloginへ誘導し、画面断片へloginページを挿入しない。入力拒否は422、権限不足は403、技術障害は詳細を伏せた500のHTMLを返す。htmxはこれらのHTML応答を表示し、通信失敗も通知する。業務画面は履歴snapshotを保存しない。
+
+**影響:** UIのtemplate生成と静的資産の同梱をGradleで行い、URLの入口制御をSpring Securityに定義する。公開部品集はブラウザー内の架空dataを扱い、再読み込みで初期化する。DB sampleは公開APIの作成・ID検索契約を維持する。実ブラウザーで通常フォームと部分更新、入力拒否、権限、技術障害秘匿、login／logout、context path、明暗、狭幅を検証する。高度なセル編集グリッドは案件要件に応じて別途判断する。
+
+参照: [jte Boot 4](https://jte.gg/spring-boot-starter-4/)、[jte Gradle](https://jte.gg/gradle-plugin/)、[htmx](https://htmx.org/docs/)、[Bootstrap](https://getbootstrap.com/docs/5.3/)、[Alpine](https://alpinejs.dev/)。
+
+
+<a id="adr-029"></a>
+## ADR-029: 業務画面の共通レイアウトと視覚的な階層
+
+**状態:** Accepted
+
+**背景:** 継続的に使う業務画面には、操作対象を判断しやすい情報の階層と、全画面で一貫した外観が必要である。
+
+**決定:** 濃色のサイドナビ、共通header、本文領域でshellを構成する。狭幅ではナビを開閉し、現在地をaria-currentで示す。本文は見出し・説明・主要操作・検索条件・一覧・補助操作の順序を揃える。Bootstrap標準の配色、余白、typography、card、table、badgeを使用し、主要操作のアクセントをprimaryに集約する。状態は色と名称の両方で示す。共通jte部品でpage headingを統一し、固有の装飾CSSや外部font・imageを追加しない。明暗切替は本文に適用し、サイドナビは濃色を維持する。
+
+**影響:** ナビはdesktopで常時表示、mobileでAlpineによる開閉とし、JavaScript無効時もリンクを表示する。共通layout、home、部品集、DB連携、loginに適用する。mobileのナビ操作、現在地、明暗、一覧操作、はみ出しを実browserで検証する。
+
+
+<a id="adr-030"></a>
+## ADR-030: jteの共通部品と機能別画面の配置
+
+**状態:** Accepted
+
+**背景:** 画面の増加に合わせて変更対象を探しやすくし、共通部品と画面固有の断片、案件へ転用する際のsampleの配置を明確にする。
+
+**決定:** src/main/jteをlayouts、components、pagesに分ける。layoutsはHTML全体の骨格、componentsは複数画面で共有する部品、pagesは機能別の画面を持つ。機能内のindex.jteは入口のページ全体を描画し、詳細・編集はdetail.jte、edit.jte等の役割名とする。画面固有の断片は同じ機能のfragmentsへ置き、初回描画とhtmx応答で共用する。断片は業務機能の所有単位で配置し、共通のfragmentsへ集約しない。ページは共通部品と自機能の断片を組み合わせる。
+
+home、auth、featureをpages直下に配置し、公開部品集はpages/samples/componentsへ置く。部品集はindex.jteから検索一覧と入力部品の断片を呼ぶ。共通エラー通知はcomponents/error-message.jteとする。分割は責務・再利用・描画単位に基づき、短いHTMLだけを理由に部品を増やさない。template pathは公開URLとは独立して管理する。
+
+**影響:** Controllerのview名とjteの呼び出し先を配置に合わせる。業務API、公開URL、認証、画面表示・操作は既存の契約を維持する。画面全体・部分更新・共通エラー・login・部品集の操作を既存の実browser testで検証する。

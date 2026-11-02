@@ -11,7 +11,7 @@ plugins {
     checkstyle
     jacoco
     alias(libs.plugins.spring.boot)
-    alias(libs.plugins.vaadin)
+    alias(libs.plugins.jte)
     alias(libs.plugins.spotless)
     alias(libs.plugins.spotbugs)
 }
@@ -52,12 +52,41 @@ val codegenRuntime = configurations.create("codegenRuntime") {
     isCanBeResolved = true
 }
 
+val uiAssets = configurations.create("uiAssets") {
+    isCanBeConsumed = false
+    isCanBeResolved = true
+    isTransitive = false
+}
+
+jte { generate() }
+
+val prepareUiAssets = tasks.register<Sync>("prepareUiAssets") {
+    description = "Packages pinned browser assets without CDN or Node dependencies."
+    val bundledAssets = listOf("META-INF/resources/webjars/bootstrap/**/dist/css/bootstrap.min.css",
+        "META-INF/resources/webjars/htmx.org/**/dist/htmx.min.js",
+        "META-INF/resources/webjars/alpinejs/**/dist/cdn.min.js",
+        "META-INF/resources/webjars/bootstrap/**/LICENSE",
+        "META-INF/resources/webjars/htmx.org/**/LICENSE")
+    inputs.property("bundledAssets", bundledAssets)
+    from(provider { uiAssets.map { zipTree(it) } }) {
+        include(bundledAssets)
+        eachFile {
+            path = if (name == "LICENSE") "META-INF/licenses/" + path.split("/")[3] + "-LICENSE"
+                else "static/vendor/" + name
+        }
+        includeEmptyDirs = false
+    }
+    into(layout.buildDirectory.dir("generated-resources/ui"))
+}
+sourceSets.main { resources.srcDir(prepareUiAssets) }
+
 dependencies {
+    uiAssets(libs.bootstrap)
+    uiAssets(libs.htmx)
+    uiAssets(libs.alpine)
+    implementation(libs.jte.starter)
     add(codegenRuntime.name, project(":codegen"))
-    implementation(platform(libs.vaadin.bom))
     implementation(libs.springdoc.webmvc.ui)
-    implementation(libs.vaadin.core)
-    implementation(libs.vaadin.spring)
     implementation(platform(libs.spring.boot.bom))
     implementation(platform(libs.spring.modulith.bom))
     implementation(libs.spring.modulith.api)
@@ -75,8 +104,6 @@ dependencies {
     runtimeOnly(libs.flyway.postgresql)
     runtimeOnly(libs.postgresql)
     developmentOnly(platform(libs.spring.boot.bom))
-    developmentOnly(platform(libs.vaadin.bom))
-    developmentOnly(libs.vaadin.dev)
     developmentOnly(libs.spring.boot.docker.compose)
     testImplementation(libs.spring.boot.starter.test)
     testImplementation(libs.spring.boot.starter.webmvc.test)
@@ -116,7 +143,7 @@ tasks.named<SpotBugsTask>("spotbugsMain") {
     auxClassPaths.from(sourceSets.main.get().output)
     excludeFilter = file("config/spotbugs/exclude.xml")
     classes = sourceSets.main.get().output.classesDirs.asFileTree.matching {
-        exclude("**/jooq/**")
+        exclude("**/jooq/**", "**/gg/jte/generated/**")
     }
 }
 
@@ -146,7 +173,7 @@ val playwrightInstall = tasks.register<JavaExec>("playwrightInstall") {
 }
 
 val integrationTestTask = tasks.register<Test>("integrationTest") {
-    dependsOn(playwrightInstall, "vaadinBuildFrontend")
+    dependsOn(playwrightInstall)
     outputs.dir(layout.buildDirectory.dir("reports/ui"))
     environment("PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD", "1")
     useJUnitPlatform { includeTags("integration") }
@@ -184,7 +211,7 @@ spotless {
     }
     format("misc") {
         target("*.md", "docs/**/*.md", "*.gradle.kts", "codegen/*.gradle.kts", "gradle.properties", "gradle/*.toml",
-            ".gitignore", ".gitattributes", "config/**/*.xml", "src/main/resources/**/*.yml", "src/main/resources/**/*.sql", "docker/*.yaml", ".github/workflows/*.yml", "renovate.json")
+            ".gitignore", ".gitattributes", "config/**/*.xml", "src/main/jte/**/*.jte", "src/main/resources/static/ui/**", "src/main/resources/**/*.yml", "src/main/resources/**/*.sql", "docker/*.yaml", ".github/workflows/*.yml", "renovate.json")
         trimTrailingWhitespace()
         endWithNewline()
     }
@@ -207,7 +234,7 @@ tasks.jacocoTestReport {
     setDependsOn(listOf(unitTestTask, integrationTestTask))
     setMustRunAfter(listOf(unitTestTask, integrationTestTask))
     classDirectories.setFrom(sourceSets.main.get().output.classesDirs.asFileTree.matching {
-        exclude("**/jooq/**")
+        exclude("**/jooq/**", "**/gg/jte/generated/**")
     })
     executionData.setFrom(fileTree(layout.buildDirectory.dir("jacoco")) {
         include("unitTest.exec", "integrationTest.exec")

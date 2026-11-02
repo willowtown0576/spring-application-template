@@ -10,7 +10,7 @@
 flowchart LR
   accTitle: 依存方向
   accDescr: 公開APIとPortを境界とするコンパイル時の依存
-  ADAPTER[REST / Vaadin / Batch / Scheduling] --> API[feature.api.command / query]
+  ADAPTER[REST / MVC画面 / Batch / Scheduling] --> API[feature.api.command / query]
   COMMAND[internal.command] -. implements .-> API
   QUERY[internal.query] -. implements .-> API
   COMMAND --> USECASE[internal.usecase]
@@ -37,7 +37,7 @@ flowchart LR
 | `feature.internal.domain` | Entity、Value Object、不変条件。framework非依存 |
 | `feature.internal.query` | 認可、read-only transaction、DataSource Port、公開結果への変換 |
 | `feature.internal.infrastructure` | jOOQ、外部HTTP、storage等の技術adapter |
-| `web.rest`／`web.ui` | HTTP／Vaadinへの変換、公開API呼び出し |
+| `web.rest`／`web.ui` | HTTP／MVC画面への変換、公開API呼び出し |
 | `common` | Result、UTC Clock、UUID v7。業務moduleから独立した共通契約 |
 | `security` | filter chain、認証・認可の技術設定、運用Authority |
 | `logging`／`http`／`scheduling` | 横断ログ、標準HTTP設定、scheduler有効化 |
@@ -68,7 +68,7 @@ Queryは参照用途のSQLとread modelを優先する。DataSourceが内部Feat
 sequenceDiagram
     accTitle: Command実行
     accDescr: 認可・transaction境界を通る更新の順序
-    participant A as REST / Vaadin
+    participant A as REST / MVC画面
     participant B as Command境界
     participant U as UseCase / domain
     participant R as Repository実装
@@ -101,4 +101,4 @@ featureはcommonとjooq、webはfeatureのcommand／query、common、loggingへ�
 
 ## frameworkの境界
 
-HTTP／Vaadin／Security／jOOQの型は技術adapterに配置する。外部HTTP DTOはinfrastructure、HTTP request／responseはwebに置く。操作者が必要な業務APIには用途に合うActor／UserId等を渡す。共通loggingはAOP／filter／interceptorで行い、記録項目を診断に必要な非機密情報へ限定する。
+HTTP／MVC画面／Security／jOOQの型は技術adapterに配置する。外部HTTP DTOはinfrastructure、HTTP request／responseはwebに置く。操作者が必要な業務APIには用途に合うActor／UserId等を渡す。共通loggingはAOP／filter／interceptorで行い、記録項目を診断に必要な非機密情報へ限定する。

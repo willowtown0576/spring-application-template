@@ -63,7 +63,7 @@ flowchart TD
     check --> quality[Spotless / Checkstyle / SpotBugs]
     check --> jarcheck[verifyProductionJar]
     check --> toolcheck[codegen:check]
-    tests --> browser[Playwright / Vaadin frontend]
+    tests --> browser[Playwright / jte]
     docs[documentation] --> dbdocs[databaseDocumentation]
     docs --> apidocs[apiDocumentation]
     dbdocs --> image[documentationImage]
@@ -80,7 +80,7 @@ rootの`codegenRuntime`は、生成ツールを実行するためだけの解決
 | configuration | 用途 |
 |---|---|
 | implementation／runtimeOnly | applicationが必要とするlibrary／実行時driver |
-| developmentOnly | Vaadin開発支援とBoot Docker Compose連携。開発時の実行環境専用 |
+| developmentOnly | Boot Docker Compose連携。開発時の実行環境専用 |
 | testImplementation | JUnit、Testcontainers、Playwright等の検証用library |
 | codegenRuntime | codegen subprojectと生成実行用の依存 |
 
@@ -182,7 +182,7 @@ Swagger UIは起動中のapplicationのOpenAPI endpointを読む。ブラウザ�
 
 この固定はtoolchainの再現性を高めるためである。ER図の文字・関係線は描画結果を確認する。Docker tagはbuildとComposeで一致させる。documentationImageはdocker buildを実行するExec taskとし、layerの再利用はDockerが判断する。
 
-## 8. テスト・静的解析・Vaadin frontend
+## 8. テスト・静的解析・HTML資産
 
 全test sourceはsrc/test/java。rootのtestClasses出力とruntimeClasspathを使い、JUnit Tagでtaskを分ける。新source setを増やさず、test追加時はTagと実行taskが一致することを確認する。
 
@@ -191,7 +191,7 @@ Swagger UIは起動中のapplicationのOpenAPI endpointを読む。ブラウザ�
 | JUnit／AssertJ | unit・integrationの契約検証 | test source、Tag、taskのinclude／exclude |
 | Testcontainers | 実PostgreSQLを起動。ServiceConnectionがBootへ接続情報を供給 | test container定義、Catalogのimage |
 | Playwright | 実ChromiumでUIを操作。captureをreports/uiへ出力 | UI test、playwrightInstall、LinuxのplaywrightInstallDeps |
-| Vaadin Gradle plugin | JavaのUI構成と必要なfrontend資産を準備・build | Catalog、Vaadin設定、vaadinBuildFrontendのログ |
+| jte Gradle plugin／prepareUiAssets | templateをJavaへ生成し、WebJarsの配布資産を同梱 | Catalog、generateJte、prepareUiAssetsのログ |
 | Spotless／Eclipse JDT | format・import整理 | config/formatter/eclipse-java.xml、spotless block |
 | Checkstyle | 手書きsourceの構文規約検査 | config/checkstyle/checkstyle.xml |
 | javac | 非推奨／削除予定API参照を警告から失敗へ変える | root／codegenのJavaCompile設定 |
@@ -199,7 +199,7 @@ Swagger UIは起動中のapplicationのOpenAPI endpointを読む。ブラウザ�
 | Modulith／ArchUnit | module公開境界・cycleと追加依存規則 | ArchitectureTest、package-info.java |
 | JaCoCo | unitTestとintegrationTestの実行情報を集計 | executionData、classDirectories、report設定 |
 
-integrationTestはplaywrightInstallとvaadinBuildFrontendへ依存する。browser本体とLinux共有libraryのinstallは別taskである。Playwrightはtest用classpathに配置する。Vaadin生成物やNode関連資産はpluginの出力として扱い、更新は再生成で行う。
+integrationTestはplaywrightInstallへ依存する。browser本体とLinux共有libraryのinstallは別taskである。Playwrightはtest用classpathに配置する。jte生成sourceとブラウザー資産はbuild配下に出力し、変更時はGradleで再生成する。Bootstrap・htmxのLICENSEはWebJarsから同梱し、AlpineのLICENSEはsrc/main/resources/META-INF/licensesに保持する。依存更新時は上流のライセンス表示も確認する。
 
 Spotlessは整形、Checkstyleは規約、SpotBugsはbytecode解析を担当する。jOOQ生成Javaはcompile対象だが、手書きsource用Checkstyle／Spotlessからは外す。SpotBugsは生成classを解析対象から外しつつ、参照解決用classpathには残す。JaCoCoも生成型を集計から除外する。集約test・architectureTest・apiDocumentationではJaCoCo agentを無効にしている。testは専用taskとcoverageを集約する。JaCoCo reportはunitTest.execとintegrationTest.execだけを集計する。
 
@@ -283,7 +283,7 @@ rootのcodegenRuntimeも`dependencies --configuration codegenRuntime`で確認�
 | 新columnが反映されない | 1. migrationの入力に含まれるか<br>2. UP-TO-DATE理由<br>3. 生成型。生成元はmigration適用後の一時DB |
 | migration失敗 | 1. 対象DBの用途<br>2. Flyway最初の原因<br>3. version重複／checksum／SQL。schema修正は新migrationで行う |
 | test対象が0件 | JUnit Tag、taskのinclude／exclude、--testsのclass／method指定 |
-| UI test起動失敗 | Playwright取得、Linux共有library、Vaadin frontend生成、server起動の順 |
+| UI test起動失敗 | Playwright取得、Linux共有library、jte・静的資産生成、server起動の順 |
 | DB資料にtableがない | 1. migration<br>2. .tbls.ymlのexclude<br>3. schema.json<br>4. Markdown／SVG |
 | Swaggerに新APIがない | 1. ControllerがBeanか<br>2. Mapping<br>3. packages-to-scan<br>4. 起動中serverのOpenAPI。稼働中serverのmetadataを確認する |
 | API資料生成が失敗 | 1. ApiDocumentationTest／FeatureApiDocumentationTestのreport<br>2. 401／403／schema契約／DB起動 |

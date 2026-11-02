@@ -1,5 +1,6 @@
 package dev.template.application.web.rest;
 
+import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.microsoft.playwright.Playwright;
@@ -20,8 +21,8 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 @Tag("integration")
 @Testcontainers
 @SpringBootTest(classes = Application.class, webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
-    "spring.docker.compose.enabled=false", "server.address=127.0.0.1", "vaadin.productionMode=true",
-    "server.servlet.context-path=/app", "springdoc.api-docs.enabled=true", "springdoc.swagger-ui.enabled=true",
+    "spring.docker.compose.enabled=false", "server.address=127.0.0.1", "server.servlet.context-path=/app",
+    "springdoc.api-docs.enabled=true", "springdoc.swagger-ui.enabled=true",
     "starter.security.user.operations-read=true"})
 class SwaggerUiIntegrationTest {
     /** Springの接続先として共有する、このtest class専用のPostgreSQL。 */
@@ -56,12 +57,19 @@ class SwaggerUiIntegrationTest {
                 .findFirst().orElseThrow().value;
             page.locator("input[name=username]").fill("test-user");
             page.locator("input[name=password]").fill("test-password-12345");
-            page.locator("vaadin-button[theme~=submit]").click();
+            page.locator("#login-submit").click();
             page.waitForURL(base + "/");
             page.navigate(base + "/swagger-ui/index.html");
             final String token = context.cookies().stream().filter(cookie -> cookie.name.equals("XSRF-TOKEN"))
                 .findFirst().orElseThrow().value;
             assertThat(token).isNotEqualTo(beforeLogin);
+
+            // HTML画面と部分更新のURLもcontext pathを保持する。
+            page.navigate(base + "/features");
+            page.locator("#feature-name").fill("context path UI");
+            page.locator("#feature-create").click();
+            assertThat(page.locator("#feature-result")).hasText("作成しました。");
+            page.navigate(base + "/swagger-ui/index.html");
 
             // Swaggerの標準操作で作成し、context path付きLocationから取得する。
             page.locator(".opblock-post .opblock-summary").click();

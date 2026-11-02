@@ -32,7 +32,7 @@ AI向け指示はrootのAGENTS.mdへ集約する。設計・手順の正本はdo
 - feature公開API、Method Security、transaction、生成SQL型の参照境界を維持する。詳細はADRとarchitectureに従う。
 - dependency／plugin／imageのversionは既存の管理元へ置く。version依存のAPIを変更する場合は採用versionの公式仕様を確認する。
 - secret、ローカル設定、生成source、生成資料、test reportはGit管理外とする。適用済みschemaの変更は新migrationで行う。
-- 部品集はVaadin標準component・theme・variantを使う。装飾と配色はVaadin提供のstyleへ統一する。
+- 画面は共通jte部品とBootstrap標準class・variantを使う。通信を伴う部分更新はhtmx、ブラウザー内の一時状態はAlpine.jsへ配置する。
 
 ## 検証と完了報告
 

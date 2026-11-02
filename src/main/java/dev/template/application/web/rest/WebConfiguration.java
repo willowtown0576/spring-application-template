@@ -10,6 +10,7 @@ class WebConfiguration implements WebMvcConfigurer {
     /** {@inheritDoc} */
     @Override
     public void configureApiVersioning(final ApiVersionConfigurer configurer) {
-        configurer.usePathSegment(1);
+        configurer.usePathSegment(1, path -> path.pathWithinApplication().value().startsWith("/api/"))
+            .setVersionRequired(false);
     }
 }
