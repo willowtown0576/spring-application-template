@@ -24,8 +24,8 @@
 ## A. 採用条件と入力値
 
 - [ ] **A1 判断必須 — 採用元を確定する。** 採用するtemplateのtag／commit、案件repositoryのowner／name／公開範囲、default branchを決める。ローカルだけの未commit変更やsecret、生成物を案件へ持ち込まない。完了条件: 案件がどのsourceから作られたか特定でき、push先がtemplate元でない。
-- [ ] **A2 判断必須 — 利用・配布条件を決める。** 現行rootにはLICENSEがない。案件のsource公開方針、権利者表記、配布時の依存license表示を確認し、必要なLICENSE／NOTICEを用意する。Vaadinの追加部品を選ぶ場合も採用条件を確認する。
-- [ ] **A3 判断必須 — 技術基盤を採用できるか確認する。** Java 25、Spring Boot 4.1系、Vaadin 25、PostgreSQL、Docker利用、JVM実行、Modular Monolithの前提を案件環境と照合する。差異があれば先に案件ADRへ記載する。versionやlibraryの変更は案件の技術要件に基づいて判断する。
+- [ ] **A2 判断必須 — 利用・配布条件を決める。** 現行rootにはLICENSEがない。案件のsource公開方針、権利者表記、配布時の依存license表示を確認し、必要なLICENSE／NOTICEを用意する。UIの追加部品を選ぶ場合も採用条件を確認する。
+- [ ] **A3 判断必須 — 技術基盤を採用できるか確認する。** Java 25、Spring Boot 4.1系、jte／htmx／Bootstrap／Alpine.js、PostgreSQL、Docker利用、JVM実行、Modular Monolithの前提を案件環境と照合する。差異があれば先に案件ADRへ記載する。versionやlibraryの変更は案件の技術要件に基づいて判断する。
 - [ ] **A4 判断必須 — 次の値を確定する。** repository名、Gradle project名、group、base package、生成tool package、application識別名、画面表示名、初期version、資料image名。各値は用途に応じて個別に決める。入力先と変換関係はBの表を使う。
 - [ ] **A5 判断必須 — sampleの扱いを決める。** welcome／部品集／テーマ比較と、DBを使うfeature sampleを別々に「開発中保持・業務へ転用・削除」から選ぶ。公開可否と削除期限も決め、実装はD／Fへ反映する。
 
@@ -41,7 +41,7 @@
 | `dev/template/application` | Java sourceのdirectory。SpotBugs／JaCoCoは`**/jooq/**`を除外し、verifyProductionJarは実class出力から検査するため対象は実際のclass出力から決まる |
 | package依存の検査 | [ArchitectureTest](../src/test/java/dev/template/application/ArchitectureTest.java)のpackage規約とApplication.classから導出する解析範囲。[SpotBugs filter](../config/spotbugs/exclude.xml)のclass名。package構造の規約を変える場合はpatternも追従 |
 | `dev.template.build`／`dev/template/build` | codegen/src/main/javaのdirectoryとpackage、root build.gradle.ktsのJooqCodegen／DocumentationMigrationのmainClass。application packageへ混ぜず、生成toolを配布から隔離する |
-| `Application Starter`等の表示 | [StarterLayout](../src/main/java/dev/template/application/web/ui/StarterLayout.java)、[WelcomeView](../src/main/java/dev/template/application/web/ui/WelcomeView.java)、[LoginView](../src/main/java/dev/template/application/web/ui/LoginView.java)、[ComponentGalleryView](../src/main/java/dev/template/application/web/ui/ComponentGalleryView.java)の表示文言／PageTitleと対応UI test |
+| `Spring Application`等の表示 | src/main/jteのlayouts/application.jte・pages/home/index.jte・pages/auth/login.jte・pages/samples/components/と対応UI test |
 | `0.1.0-SNAPSHOT` | root build.gradle.ktsのversion、docsのJAR名・release例。APIのmajor versionとは別管理 |
 | `spring-application-starter-docs:1` | root build.gradle.ktsのdocumentationImage、[docker/compose.yaml](../docker/compose.yaml)のdocs-tools.image、[renovate.json](../renovate.json)のignoreDeps。複数案件でtoolchainを変更するなら共有tagの衝突を避ける |
 | `starter.security.local`／`starter.security.user` | 条件付きの名称変更。application.yml、[LocalAuthenticationConfiguration](../src/main/java/dev/template/application/security/LocalAuthenticationConfiguration.java)の条件とConfigurationProperties、build.gradle.ktsのbootRun、test resources、認証設定test。STARTER_SECURITY_LOCAL_ENABLED／APP_USER_*は環境変数契約であり別途判断 |
@@ -59,7 +59,7 @@
 - [ ] **C1 変更必須 — 開発者ごとに起動設定を与える。** [local-env.properties.example](../config/local-env.properties.example)をGit管理外のlocal-env.propertiesへコピーし、DEV_DB_PASSWORDとAPP_USER_NAME／APP_USER_PASSWORDを設定する。passwordは12 code point以上・72 UTF-8 bytes以下。初期値や実credentialをtemplateへ埋め込まない。案件の認証へ変更済みならE2の契約に従う。
 - [ ] **C2 判断必須 — 開発DB名・user・volumeの扱いを決める。** Composeのdev用POSTGRES_DB／USERは`application`、volume keyは`postgres-data`。保持してよいがCompose project名・volumeは案件ごとに分離する。directory名やCOMPOSE_PROJECT_NAMEも確認する。既存volumeのpasswordは設定file変更だけでは変わらない。
 - [ ] **C3 判断必須 — 同時起動と接続設定を決める。** 8080が競合する場合はSERVER_PORT、必要時は待受addressを設定する。開発DBはloopbackの動的portを使う。既存環境変数がlocal fileより優先されること、JARはlocal fileを読まないことを確認する。
-- [ ] **C4 判断必須 — チームの実行環境を合わせる。** JDK 25／Gradle JVM、Docker、依存・image・Chromium取得経路を確認する。network制限がある場合だけMaven／container／browserの取得設定を追加する。GradleはWrapper、NodeはVaadinのbuild toolingで管理する。
+- [ ] **C4 判断必須 — チームの実行環境を合わせる。** JDK 25／Gradle JVM、Docker、依存・image・Chromium取得経路を確認する。network制限がある場合だけMaven／container／browserの取得設定を追加する。GradleはWrapper、UI資産は固定したWebJarsで管理する。
 - [ ] **C5 条件付き — versionを変えるなら管理元を同時更新する。** Javaはroot／codegenのToolchainとCI／Releaseのsetup-java、GradleはWrapperとchecksum、明示依存はCatalog。PostgreSQLはCatalogとCompose両service、資料toolchainはDockerfile／lockfileを合わせる。BOM管理のversionはBOMに集約する。
 
 ## D. 業務feature・DB・生成型
@@ -81,8 +81,8 @@
 | 業務Java | feature配下の公開API／authorization／内部実装、各package-info.java、利用するadapter |
 | DB／SQL型 | 新migration、JooqCodegenのschema／package、Repository／DataSourceのgenerated import |
 | 認証・system | LocalAuthenticationConfigurationの権限付与、SystemActorの権限。SystemActorは`List<GrantedAuthority>`で複数featureの権限を保持できる |
-| REST／UI | FeatureController、FeatureView、StarterLayout／WelcomeViewのDB連携リンク、OpenApiConfigurationのtitle／説明 |
-| 品質設定 | ArchitectureTestのpackage規約、SpotBugs filterのCreateFeatureUseCase例外。gallery削除時はCheckstyleのComponentGalleryView.nextId例外も削除 |
+| REST／UI | FeatureController、UiController、jteのDB連携リンク、OpenApiConfigurationのtitle／説明 |
+| 品質設定 | ArchitectureTestのpackage規約、SpotBugs filterのCreateFeatureUseCase例外 |
 | test | FeatureNameTest、CreateFeatureUseCaseTest、DatabaseIntegrationTest、WithTestUser、LocalAuthenticationConfigurationTest、ProjectAuthenticationIntegrationTest、SystemExecutionTest、FeatureUiIntegrationTest、ApiDocumentationTestのsample依存 |
 | DB資料 | .tbls.ymlのname／desc／exclude、DB guide／ER説明 |
 | プロジェクト資料 | README、architecture、developer-guide、operations、図のsample説明とURL |
@@ -90,19 +90,19 @@
 ## E. 認証・認可・実行主体
 
 - [ ] **E1 判断必須 — 本番の認証方式を採用する。** 環境設定による1利用者認証は開発専用。本番はSTARTER_SECURITY_LOCAL_ENABLED=falseとし、利用者数、個別監査、退職・無効化、password変更、SSO、MFA等の要件に合わせて案件の認証を実装する。組織のSSOまたは利用者ごとのDB認証等を選び、設定・secretの管理先を決める。
-- [ ] **E2 変更必須 — 認証を接続する。** 通常ConfigurationでUserDetailsService／AuthenticationProvider／AuthenticationManagerのいずれかをBean公開し、対象のSecurityFilterChainへ接続する。開発用認証はbackoffし、APP_USER_*は不要となる。認証Bean未設定は起動失敗。OIDC等は採用依存、接続設定、実際に使うprovider／managerのBean公開、UI chain、LoginView／ナビ、logout、Authority変換を一組で構成する。手順は[運用ガイド](operations.md#authentication)を参照する。開発用認証が無効な状態で実際のlogin成功・失敗、開発credential拒否、logoutと権限不足を検証する。
+- [ ] **E2 変更必須 — 認証を接続する。** 通常ConfigurationでUserDetailsService／AuthenticationProvider／AuthenticationManagerのいずれかをBean公開し、対象のSecurityFilterChainへ接続する。開発用認証はbackoffし、APP_USER_*は不要となる。認証Bean未設定は起動失敗。OIDC等は採用依存、接続設定、実際に使うprovider／managerのBean公開、UI chain、pages/auth/login.jte／ナビ、logout、Authority変換を一組で構成する。手順は[運用ガイド](operations.md#authentication)を参照する。開発用認証が無効な状態で実際のlogin成功・失敗、開発credential拒否、logoutと権限不足を検証する。
 - [ ] **E3 変更必須 — 業務権限を定義する。** feature:read／writeを各業務Authorityと利用者への付与規則に置き換える。業務操作の本認可はCommand／QueryのMethod Securityとする。必要ならtenant／所有者／行単位の認可を追加し、権限不足testも用意する。
 - [ ] **E4 判断必須 — system主体の権限を確定する。** 現行BATCHはfeature参照・更新、SCHEDULERは参照だけ。実Job／定期処理が必要とする最小権限へ変更する。system: namespaceを利用者と分離し、システム主体は信頼されたadapterのコードで選択する。
 - [ ] **E5 判断必須 — 運用権限を分離する。** 本番のops:read付与先と開発用APP_USER_OPERATIONS_READ、Actuator／API資料への到達範囲を決める。全利用者に運用権限を配らない。
 - [ ] **E6 判断必須 — sessionと公開境界を設定する。** HTTPS、cookieのSecure／HttpOnly／SameSite、session有効期限、CSRF、login失敗時の制限、proxy越しのURLを実配置で確認する。別originのREST clientが必要ならCORS・認証・CSRF方式をそのclient向けに設計し、clientごとの信頼境界に応じて保護設定を適用する。
-- [ ] **E7 条件付き — 複数instanceならsession・処理分担を設計する。** Vaadinのserver側UI state、再起動時のsession、load balancerの振り分け、Batch／Schedulerの多重起動を確認する。Redis等の採用は配置要件に基づいて判断する。
+- [ ] **E7 条件付き — 複数instanceならsession・処理分担を設計する。** 再起動時のsession、load balancerの振り分け、Batch／Schedulerの多重起動を確認する。Redis等の採用は配置要件に基づいて判断する。
 
 ## F. UI・REST・公開sample
 
-- [ ] **F1 変更必須 — 案件の入口を作る。** `/`のWelcomeViewを案件のhomeへ置換するか、開発用保持の期限を決める。StarterLayoutのタイトル・ナビ、LoginView、PageTitle、空状態・エラー・ヘルプ文言を案件へ合わせる。リンク先は実際に提供するrouteと一致させる。
-- [ ] **F2 判断必須 — 公開sampleの扱いを確定する。** `/components`、`/theme-comparison`、`/theme-preview`は匿名公開で、メニューを消すだけではアクセスできる。削除または案件向けのroute制限を行い、本番で残すものは公開理由を明確にする。DB sampleの`/features`／`/api/v1/features`も別に判断する。
-- [ ] **F3 判断必須 — テーマを選ぶ。** 通常画面はStarterShellでAura、比較iframeだけLumo。Lumoを通常テーマにする場合はshell、標準variant、明暗切替、UI testを更新する。documentごとにAuraまたはLumoを選択し、styleはVaadin標準に統一する。
-- [ ] **F4 条件付き — 比較機能を削除したら付随設定も整理する。** ThemeComparisonView、ComponentGalleryViewのRouteAlias／preview向けBeforeEnter、StarterShellのquery分岐、ナビ／資料／testを整理する。UI chainのSAMEORIGINはiframe比較用なので、埋め込みが不要ならframe拒否へ戻す。AppShellConfiguratorを残す場合は標準stylesheetの指定を残す。
+- [ ] **F1 変更必須 — 案件の入口を作る。** pages/home/index.jteを案件homeへ置換し、layouts/application.jteのタイトル・ナビ、pages/auth/login.jte、空状態・エラー・ヘルプ文言を合わせる。リンク先は実際に提供するURLと一致させる。
+- [ ] **F2 判断必須 — 公開sampleの扱いを確定する。** `/components`は匿名公開で、メニューを消すだけではアクセスできる。削除または案件向けのURL制限を行い、本番で残すものは公開理由を明確にする。DB sampleの`/features`／`/api/v1/features`も別に判断する。
+- [ ] **F3 判断必須 — 画面規約を定める。** Bootstrap標準class・variantと共通jte部品を使用し、明暗・狭幅・入力エラー・キーボード操作を検証する。
+- [ ] **F4 条件付き — 公開部品集を削除したら付随設定も整理する。** pages/samples/components/、sampleGallery、ナビ、Securityの匿名許可、資料、対応UI testを更新する。
 - [ ] **F5 判断必須 — 言語・時刻・端末を確定する。** 日本語表示、lang／Locale、DatePicker等の入力形式、業務timezone／通貨、mobileとkeyboard操作を要件に合わせる。内部時刻のUTC／Clockと業務の表示timezoneを区別する。
 - [ ] **F6 変更必須 — 業務REST契約と資料を合わせる。** FeatureControllerのpath／DTO／status、OpenApiConfigurationの共通説明と各APIのmetadata、FeatureApiDocumentationTest等のsample契約testを実仕様へ変更する。RESTを提供しない場合はsampleを撤去し、API資料task／release添付の扱いをADRで決める。
 - [ ] **F7 条件付き — APIの構造を変える場合は周辺も追従する。** 現行は`/api/v1`、WebConfigurationはpath segment 1でmajorを解決する。prefix／major変更時はsecurityMatcher、URL／test、OpenAPI出力先、releaseArtifactsを確認する。API versionとapplication versionは独立して管理する。
@@ -144,7 +144,7 @@
 - [ ] **J1 — 置換漏れを検索する。** 次の検索結果を意味ごとにreviewする。保持する技術名・ADRの履歴・本チェックリスト内の初期値例は除外理由を判断し、置換はその識別子の用途に基づいて判断する。
 
 ```bash
-rg -n --hidden -g '!.git/**' -g '!.gradle/**' -g '!build/**' -g '!codegen/build/**' -g '!node_modules/**' -g '!target/**' -g '!src/main/frontend/generated/**' -g '!config/local-env.properties' 'dev[./]template|spring-application-starter|Application Starter|APPLICATION STARTER|Feature API|feature:|starter\.security' .
+rg -n --hidden -g '!.git/**' -g '!.gradle/**' -g '!build/**' -g '!codegen/build/**' -g '!config/local-env.properties' 'dev[./]template|spring-application-starter|Application Starter|APPLICATION STARTER|Feature API|feature:|starter\.security' .
 rg -n 'feature|application\.jooq|SystemExecution' src codegen/src config .tbls.yml build.gradle.kts
 ```
 

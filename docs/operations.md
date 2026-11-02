@@ -29,7 +29,7 @@ timeoutは正のDuration。bootRunだけはconfig/local-env.propertiesから環�
 
 開発用認証は`starter.security.local.enabled=true`の場合だけ有効。bootRunは環境変数`STARTER_SECURITY_LOCAL_ENABLED`が未設定ならtrueを補完する。既存環境変数、次にlocal-env.propertiesの値を優先する。IDEから直接起動する場合は開発用の実行設定で明示的に有効化する。
 
-開発用認証ではSpring Securityのフォーム認証とVaadin標準LoginFormを使用する。`/login`へAPP_USER_NAME／APP_USER_PASSWORDを入力するとsessionが確立する。passwordは起動時にBCryptでencodeし、InMemoryUserDetailsManagerへ登録する。設定不足と不正な長さは起動時に拒否する。利用者名のsystem: prefixはシステム主体用に予約する。利用者はfeatureの参照・更新権限を持ち、運用権限はAPP_USER_OPERATIONS_READ=trueの場合だけ付与する。
+開発用認証ではSpring Securityのフォーム認証とjteのHTMLフォームを使用する。`/login`へAPP_USER_NAME／APP_USER_PASSWORDを入力するとsessionが確立する。passwordは起動時にBCryptでencodeし、InMemoryUserDetailsManagerへ登録する。設定不足と不正な長さは起動時に拒否する。利用者名のsystem: prefixはシステム主体用に予約する。利用者はfeatureの参照・更新権限を持ち、運用権限はAPP_USER_OPERATIONS_READ=trueの場合だけ付与する。
 
 ### 本番の認証を接続する
 
@@ -43,7 +43,7 @@ timeoutは正のDuration。bootRunだけはconfig/local-env.propertiesから環�
 |---|---|
 | DB等の利用者store＋フォーム認証 | UserDetailsService Beanで利用者・ハッシュ化password・Authorityを提供する。採用したhash形式に合わせPasswordEncoderを設定する。標準の/login・session・logoutを利用できる |
 | 独自AuthenticationProvider／AuthenticationManager | 実際に使用するproviderまたはmanagerをBeanとして公開し、対象のSecurityFilterChainへ組み込む。複数providerの場合も使用順と対象を明示する |
-| OIDC等の外部認証 | 採用方式の依存、IdP／client設定、実際に使うAuthenticationProviderまたはAuthenticationManager Beanを用意し、SecurityConfigurationのUI chain・LoginView／ナビ・logoutを方式に合わせる。OIDCではoauth2LoginとVaadinの対応設定を使用し、IdPの権限を業務Authorityへ変換する |
+| OIDC等の外部認証 | 採用方式の依存、IdP／client設定、実際に使うAuthenticationProviderまたはAuthenticationManager Beanを用意し、SecurityConfigurationのUI chain・pages/auth/login.jte／ナビ・logoutを方式に合わせる。OIDCではoauth2Loginと対応するUI入口設定を使用し、IdPの権限を業務Authorityへ変換する |
 
 外部認証の接続設定やfilter chain内だけのprovider定義は、上記のBean公開を代替しない。OIDCの依存追加だけでは接続は完了しない。SSOや利用者管理DBは案件で実装し、開発用認証を無効にした状態で、認証成功・失敗、開発credentialの拒否、logout、権限不足を確認する。Method SecurityとCSRF保護は採用方式でも維持する。
 
@@ -51,7 +51,7 @@ timeoutは正のDuration。bootRunだけはconfig/local-env.propertiesから環�
 
 | 対象 | 必要な権限 |
 |---|---|
-| `/`、`/components`、`/theme-comparison`、`/theme-preview` | 匿名可 |
+| `/`、`/components` | 匿名可 |
 | `/features`、`/api/**` | 認証必須。各操作の本認可は下記 |
 | FeatureCommands.create | feature:write |
 | FeatureQueries.find | feature:read |
@@ -63,7 +63,7 @@ AuthenticationとAuthorityを区別する。業務権限のwire値はFeatureAuth
 
 CSRFは有効。REST・API資料・UIはSpring Securityのspa()を使用し、XSRF-TOKEN cookieの値をX-XSRF-TOKEN headerへ渡す。login／logout後は再取得したtokenを使う。API_DOCUMENTATION_ENABLED=trueとops:readを設定し、login後に `/swagger-ui/index.html` を開くと、Swagger標準のCSRF連携でTry it outから更新できる。
 
-Vaadin内部通信は標準configurerに委ねる。RESTの未認証は401、権限不足と認証済みCSRF拒否は403、本文はProblemDetail。業務操作の権限はCommand／Queryの境界で検証する。
+UIはCSRF hidden field、htmxはCSRF headerを使用する。htmxの認証切れはHX-Redirectでloginへ誘導する。RESTの未認証は401、権限不足と認証済みCSRF拒否は403、本文はProblemDetail。業務操作の権限はCommand／Queryの境界で検証する。
 
 context pathを設定した場合、login・Swagger等のURLにもそのprefixを付ける。RESTのLocationとOpenAPI server URLはrequestに基づき生成する。reverse proxyを使う場合は、proxyが外部入力のForwarded／X-Forwarded-*を除去・再設定する構成にしたうえで、Bootのforwarded header設定を選ぶ。
 

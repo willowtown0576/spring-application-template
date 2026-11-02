@@ -42,7 +42,7 @@ unitTestでもcompileに必要なjOOQ型がなければcodegenを実行するた
 | JaCoCo | unit＋integrationの集約coverage。generated型は除外 |
 | verifyProductionJar | 実際のtest／codegen class出力とbootJarを照合し非収録を検査。実際の全main classの収録も確認 |
 
-`check` はcompiler・Spotless・Checkstyle・SpotBugs・verifyProductionJarを担当する。解析やJAR照合に必要なcompile・jOOQ生成・frontend buildは実行する。`test` はunit・integration・architectureとJaCoCo reportを実行し、`build` はcheck・test・JAR生成を集約する。codegen subprojectも同じ役割でrootへ接続する。資料生成は別task。SpotBugsの抑制は[exclude.xml](../config/spotbugs/exclude.xml)の根拠を確認し、抑制対象は根拠に対応する最小範囲とする。coverageは検証の不足を探すために使い、testは業務契約や技術境界の保証に基づいて追加する。
+`check` はcompiler・Spotless・Checkstyle・SpotBugs・verifyProductionJarを担当する。解析やJAR照合に必要なcompile・jOOQ生成・jte生成・静的資産の同梱は実行する。`test` はunit・integration・architectureとJaCoCo reportを実行し、`build` はcheck・test・JAR生成を集約する。codegen subprojectも同じ役割でrootへ接続する。資料生成は別task。SpotBugsの抑制は[exclude.xml](../config/spotbugs/exclude.xml)の根拠を確認し、抑制対象は根拠に対応する最小範囲とする。coverageは検証の不足を探すために使い、testは業務契約や技術境界の保証に基づいて追加する。
 
 ## 契約ごとの検証箇所
 
@@ -62,7 +62,7 @@ unitTestでもcompileに必要なjOOQ型がなければcodegenを実行するた
 | 開発用認証無効時の案件storeによるlogin、開発credential拒否、権限不足・logout | ProjectAuthenticationIntegrationTest |
 | HTTP timeout設定、相関ID、非retry | HttpTimeoutConfigurationIntegrationTest、HttpClientLoggingIntegrationTest |
 | payload・例外messageのログ秘匿 | CorrelationFilterTest、HTTP／DB integration tests |
-| 公開welcome／gallery、Aura／Lumo分離と操作、保護UI、DB操作、明暗・mobile | FeatureUiIntegrationTest |
+| 公開home／部品集、通常フォーム・htmx操作、保護UI、DB操作、明暗・mobile | FeatureUiIntegrationTest |
 | OpenAPI生成とops:readによる保護 | ApiDocumentationTest |
 | Feature sampleのOpenAPI契約 | FeatureApiDocumentationTest |
 | 増分codegen | 変更なしでjooqCodegenを再実行しUP-TO-DATEを確認 |

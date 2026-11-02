@@ -1,6 +1,5 @@
 package dev.template.application.security;
 
-import com.vaadin.flow.spring.security.VaadinSecurityConfigurer;
 import org.springframework.boot.health.actuate.endpoint.HealthEndpoint;
 import org.springframework.boot.security.autoconfigure.actuate.web.servlet.EndpointRequest;
 import org.springframework.context.annotation.Bean;
@@ -80,7 +79,7 @@ class SecurityConfiguration {
     }
 
     /**
-     * Vaadin標準の静的資産・内部通信・route保護を適用する。
+     * HTML画面の入口、標準フォーム認証、部分更新の認証切れを制御する。
      *
      * @param http Springのfilter chain builder
      * @return UI用filter chain
@@ -88,7 +87,33 @@ class SecurityConfiguration {
      */
     @Bean
     SecurityFilterChain uiSecurityFilterChain(final HttpSecurity http) throws Exception {
-        return http.csrf(csrf -> csrf.spa()).headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()))
-            .with(VaadinSecurityConfigurer.vaadin(), configurer -> configurer.loginView("/login", "/")).build();
+        return http.csrf(csrf -> csrf.spa())
+            .authorizeHttpRequests(
+                requests -> requests.requestMatchers("/", "/components", "/login", "/vendor/**", "/ui/**", "/error")
+                    .permitAll().requestMatchers("/actuator/**").denyAll().anyRequest().authenticated())
+            .formLogin(login -> login.loginPage("/login").defaultSuccessUrl("/", true).permitAll())
+            .logout(logout -> logout.logoutSuccessUrl("/"))
+            .exceptionHandling(exceptions -> exceptions.authenticationEntryPoint((request, response, exception) -> {
+                final String login = request.getContextPath() + "/login";
+                if ("true".equals(request.getHeader("HX-Request"))) {
+                    response.setHeader("HX-Redirect", login);
+                    response.setStatus(401);
+                } else {
+                    response.sendRedirect(login);
+                }
+            }).accessDeniedHandler((request, response, exception) -> {
+                if ("true".equals(request.getHeader("HX-Request"))) {
+                    if (request.getUserPrincipal() == null) {
+                        response.setHeader("HX-Redirect", request.getContextPath() + "/login");
+                        response.setStatus(401);
+                    } else {
+                        response.setStatus(403);
+                        response.setContentType("text/html;charset=UTF-8");
+                        response.getWriter().write("操作を確認できませんでした。画面を再読み込みしてください。");
+                    }
+                } else {
+                    response.sendError(403);
+                }
+            })).build();
     }
 }

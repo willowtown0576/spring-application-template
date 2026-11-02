@@ -74,7 +74,7 @@ class ArchitectureTest {
     @Test
     void domainAndUseCasesAreIndependentOfFrameworks() {
         noClasses().that().resideInAnyPackage("..internal.domain..", "..internal.usecase..").should()
-            .dependOnClassesThat().resideInAnyPackage("org.jooq..", "com.vaadin..", "jakarta..", "com.github.f4b6a3..",
+            .dependOnClassesThat().resideInAnyPackage("org.jooq..", "gg.jte..", "jakarta..", "com.github.f4b6a3..",
                 Application.class.getPackageName() + ".jooq..")
             .check(CLASSES);
     }

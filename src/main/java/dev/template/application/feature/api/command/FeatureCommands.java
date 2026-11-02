@@ -4,7 +4,7 @@ import dev.template.application.common.Result;
 import java.util.UUID;
 
 /**
- * Featureを変更する公開API。REST、Vaadin、他featureはこの契約を通して更新する。
+ * Featureを変更する公開API。REST、MVC画面、他featureはこの契約を通して更新する。
  *
  * <p>認可とトランザクションは実装側の境界で適用する。認証方式とHTTPの制御は技術adapterの責務とする。
  */

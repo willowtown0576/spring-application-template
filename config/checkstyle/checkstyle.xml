@@ -25,7 +25,7 @@
         <module name="OneStatementPerLine"/>
         <module name="FinalLocalVariable"/>
         <module name="MatchXpath">
-            <property name="query" value="//VARIABLE_DEF[parent::OBJBLOCK[parent::CLASS_DEF] and not(MODIFIERS/FINAL) and not(IDENT[@text='nextId'] and ancestor::CLASS_DEF/IDENT[@text='ComponentGalleryView'])]"/>
+            <property name="query" value="//VARIABLE_DEF[parent::OBJBLOCK[parent::CLASS_DEF] and not(MODIFIERS/FINAL)]"/>
             <message key="matchxpath.match" value="Class fields must be final; mutable fields require a documented, narrowly scoped exception."/>
         </module>
         <module name="FinalParameters">

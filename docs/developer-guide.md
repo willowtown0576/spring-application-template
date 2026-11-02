@@ -29,7 +29,7 @@ nameは入力文字列をそのまま保存し、同名を許可する。100個�
 
 `common.Result<S,F>` は成功／業務失敗の契約、`FeatureResult` は参照内容のrecord。呼び出し側はsealed switchでvariantを処理する。技術障害はResultへ包まずExceptionのまま伝播させる。
 
-DataSourceは内部FeatureDataを返し、Query実装が公開FeatureResultへ変換する。HTTP・Vaadin固有の型はweb adapterへ配置する。
+DataSourceは内部FeatureDataを返し、Query実装が公開FeatureResultへ変換する。HTTP・HTML画面固有の型はweb adapterへ配置する。
 
 ## Beanと不変性
 
@@ -37,7 +37,7 @@ application実装Beanは@Service／@Repository／@Componentとconstructor inject
 
 UUID生成器はSupplier<UUID>としてUseCaseへ注入する。時刻はClock、testは固定Clock／固定IDを使う。Clock.systemUTC等のJDK型やSecurityFilterChain／RestClientCustomizer等の構成は@Beanを使用する。
 
-再代入しないlocal variable、parameter、fieldにはfinalを付ける。record component等は言語仕様の暗黙finalを使用する。変更可能fieldは必要性を説明し、Checkstyle例外を対象へ限定する。部品集のnextIdはView内の行採番用であり、業務UUIDとは異なる。
+再代入しないlocal variable、parameter、fieldにはfinalを付ける。record component等は言語仕様の暗黙finalを使用する。変更可能fieldは必要性を説明し、Checkstyle例外を対象へ限定する。部品集の行採番はブラウザー内のsample識別用であり、業務UUIDとは異なる。
 
 testもconstructor injectionを基本とし、MockitoSpyBeanはclassに宣言してconstructorで受け取る。Beanの可視性は利用範囲に応じて決める。別packageから使用する必要のあるPort等はpublicにできるが、Modulithの公開契約とは区別する。
 
@@ -51,7 +51,7 @@ testもconstructor injectionを基本とし、MockitoSpyBeanはclassに宣言し
 - 利用するAPIは採用versionの推奨APIとする。全JavaCompileで `-Xlint:deprecation -Xlint:removal -Xlint:dep-ann -Werror` を適用する。main／test／codegenとも推奨APIへ置き換え、`@SuppressWarnings` のdeprecation／removal／all指定による回避を禁止する。警告を隠す `@Deprecated` 宣言も手書きsourceでは禁止し、Javadocだけのdeprecated宣言はdep-annで拒否する。
 - SpotlessのSort Membersでmemberを下表の順に整列する。同じ分類ではpublic→protected→package→private、同じ可視性では名前順とする。method・nested typeも対象になる。
 - CheckstyleのDeclarationOrderでフィールド・constructor・methodの配置とフィールドの可視性順を検査する。名前順を含むソート結果との一致はspotlessCheckで検査する。
-- 順序に依存する初期化はconstructorまたはinitializerに代入順を明示する。enum定数もソートされるため、宣言順に意味のあるenumを含むfileは理由を添えた `// @SortMembers:doNotSortFields=true` でフィールド・enum定数・initializerの並べ替えを止め、フィールドを手動で規約順に配置する。部品集のStatusは表示順を保持する。この場合もDeclarationOrderとJavaDoc検査を適用する。
+- 順序に依存する初期化はconstructorまたはinitializerに代入順を明示する。enum定数もソートされるため、宣言順に意味のあるenumを含むfileは理由を添えた `// @SortMembers:doNotSortFields=true` でフィールド・enum定数・initializerの並べ替えを止め、フィールドを手動で規約順に配置する。この場合もDeclarationOrderとJavaDoc検査を適用する。
 
 | 順番 | member |
 |---|---|
@@ -79,29 +79,51 @@ Controllerは公開Command／Queryを呼び、HTTP DTOからParamへ変換する
 
 API major versionはSpring MVC標準のpath segmentで解決する。major versionの更新は非互換変更時とする。pagination／sortを追加する場合はQuery側の型付き契約を先に決め、COUNTの実行は総件数を必要とするQueryに限定する。
 
-## Vaadin
+## HTML画面
 
-`/`、`/components`、`/theme-comparison`、`/theme-preview` は匿名公開、`/features` は認証必須。DB連携は公開APIだけを呼ぶ。Binderは入力支援であり、業務規則はCommand／domainでも検証する。
+Spring MVC Controllerはweb.uiに置き、feature公開APIを呼ぶ。jteはsrc/main/jteに配置し、表示モデルはweb.uiのrecordを使用する。業務判断・認可・transactionは公開API境界で実行する。UI構成の判断は[ADR-028](decisions.md#adr-028)を参照する。
 
-部品集のdataはサーバー上のViewインスタンスのListに保持する。dataの有効範囲は各利用者のViewインスタンスとする。Viewを作り直す再読み込み・再起動で初期値へ戻る。SampleParamは編集項目、SampleItemは行IDを含む値とし、更新時の行IDを維持する。
+### テンプレートの配置
 
-| 画面例 | 主な標準component |
+[ADR-030](decisions.md#adr-030)に従い、共通部分と機能別の画面を分離する。
+
+| 配置 | 責務 |
 |---|---|
-| テーマ比較 | FormLayout、IFrame。同じ部品集をAura／Lumoで表示 |
-| welcome | AppLayout、SideNav、Card、Details、Button |
-| 一覧とモーダル | Grid、filter、Dialog、Binder、ConfirmDialog、Notification |
-| 入力部品 | RadioButtonGroup、Checkbox、TextArea |
-| 数値・時刻 | EmailField、PasswordField、IntegerField、NumberField、TimePicker |
-| 選択部品 | Select、MultiSelectComboBox、CheckboxGroup、ListBox |
-| 表示・メニュー | MenuBar、Avatar、Tooltip、Icon、Accordion |
-| 一覧＋詳細 | MasterDetailLayout、Grid、Card |
-| カード・操作 | Card variant、Button variant、ConfirmDialog、AvatarGroup |
+| `layouts/application.jte` | HTML全体、ナビ、header、本文枠 |
+| `components/` | page-heading、field、error-message等の共通部品 |
+| `pages/home/index.jte` | home全体 |
+| `pages/auth/login.jte` | login画面 |
+| `pages/feature/index.jte` | DB連携画面全体 |
+| `pages/feature/fragments/panel.jte` | 初回描画と部分更新で共用するDB操作領域 |
+| `pages/samples/components/index.jte` | 公開部品集全体 |
+| `pages/samples/components/fragments/` | 部品集固有の検索一覧・入力部品 |
 
-Auraの既定styleと標準variantを選ぶ。装飾と配色はVaadin提供のstyleへ統一する。responsive配置はFormLayout／AppLayout／MasterDetailLayoutに委譲し、明暗表示はPage.setColorSchemeを使う。PasswordFieldは表示切替を試す部品とし、入力は動作確認用の架空の値に限定する。値の利用範囲は当該入力欄とする。
+新しい業務画面は`pages/<機能>/`に追加し、入口は`index.jte`、詳細・編集は`detail.jte`・`edit.jte`等の役割名とする。画面固有の断片は同じ機能の`fragments/`に置き、ページ全体の初回描画とhtmx応答で同じtemplateを呼ぶ。共通部品は`components/`に置き、ページからは共通部品と自機能の断片を使用する。短いHTMLだけを理由に分割しない。公開URLとtemplate pathは独立して扱う。
 
-`/theme-comparison` は左右の独立したdocumentでAuraとLumoを比較する。全7タブを操作でき、狭幅では縦に並ぶ。「比較をダークモードにする」は両previewを再読み込みするため、入力内容は初期化される。通常画面のテーマはAura。StarterShellがVaadin提供のstylesheetを選び、各documentに一つのテーマを適用する。
+Controllerは`pages/feature/index`等の拡張子なしのview名を返し、jteからは`@template.layouts.application(...)`や`@template.pages.feature.fragments.panel(...)`で呼ぶ。templateは4スペースでインデントし、HTMLの入れ子とjteの条件分岐を揃える。
 
-UI変更時は対象操作、明暗、mobileでのはみ出しと詳細画面の閉じ方を実browserで確認する。操作例の検証は `./gradlew integrationTest --tests '*FeatureUiIntegrationTest'`。captureはbuild/reports/uiに出力する。
+### URLと表示
+
+
+| URL | 用途 |
+|---|---|
+| `/` | 匿名home |
+| `/components` | 匿名部品集。架空dataはブラウザー内だけに保持 |
+| `/login` | 標準フォーム認証 |
+| `/features` | 認証必須の作成フォーム |
+| `/features/find` | 認証必須のID検索 |
+
+共通layout、field等のjte部品とBootstrapの標準class・variantで外観を統一する。標準の配布資産はBootstrap CSSとhtmx・Alpine.jsで構成し、開閉等の動作はAlpineへ配置する。検索一覧は検索条件・件数・table・ページング、詳細は項目表示と操作、入力はlabel・必須表示・項目error・保存／キャンセルを揃える。固有の装飾を各画面へ追加せず、必要なstyleはstatic/uiへ集約する。
+
+[ADR-029](decisions.md#adr-029)に従い、共通shellは濃色サイドナビ・header・本文を持つ。狭幅ではナビを開閉し、現在地はaria-currentで示す。page-heading.jteで見出しと説明を揃え、検索条件・一覧・補助操作を余白とcardで区切る。状態badgeは名称とBootstrapの意味色を併用する。
+
+通常のURLとform送信を基本に、htmxで通信を伴う領域だけ更新する。UI endpointはHTMLを返し、外部連携RESTを内部通信の必須経路にしない。入力エラーは422のHTML、業務権限不足は403、技術障害は秘匿した500で返す。UI用adviceを優先し、他のMVCエラーは既存のProblemDetailで返す。CSRFはフォームhiddenと、SPA用cookieを読み取るhtmx headerで送信する。context pathはUiPageから生成する。業務画面の履歴snapshot保存は無効にする。
+
+Alpine.jsは表示切替・入力補助等のブラウザー内の一時状態を担当する。永続化・業務検証はサーバーで実施する。同じ部品の開閉をBootstrap JSとAlpineで重複管理しない。htmxが置換するDOM内のAlpine状態は初期化されるため、保持が必要な状態は置換範囲外へ置く。共通の処理はstatic/ui/application.jsへ配置する。部品集はDBを使用せず、検索・ページング・詳細・編集・削除の操作例を示す。
+
+jteはgenerateJteでbuild配下へJavaを生成してcompileする。IDEではGradle buildを使用する。templateを変更したらclassesまたはbootRunを再実行する。ブラウザー資産のversionはCatalogで管理し、prepareUiAssetsで必要なファイルのみ生成resourceへ展開する。ブラウザーはCDNへ接続しない。
+
+UI変更時はキーボード操作、入力エラー、明暗、mobileでのはみ出し、部分更新を実browserで確認する。`./gradlew integrationTest --tests '*FeatureUiIntegrationTest'`で確認でき、captureはbuild/reports/uiへ出力する。
 
 ## 可読性
 

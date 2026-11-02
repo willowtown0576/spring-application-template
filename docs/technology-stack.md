@@ -6,7 +6,7 @@
 |---|---|---|
 | 言語・build | Java 25、Gradle Kotlin DSL、Wrapper、Toolchain | host JVM、再現可能なbuild |
 | application | Spring Boot 4.1系、Spring MVC | DI、HTTP、auto-configuration |
-| UI | Vaadin 25 core／Flow、Aura | Javaの標準component、responsive画面 |
+| UI | jte、htmx、Bootstrap、Alpine.js | HTML描画、部分更新、標準部品、局所的な対話処理 |
 | 認可・validation | Spring Security、Method Security、Jakarta Validation | 入口と業務操作の保護、型付き設定検証 |
 | module | Spring Modulith、ArchUnit | 公開境界・依存規則 |
 | DB | PostgreSQL、Flyway、jOOQ、HikariCP | schema履歴、明示的SQL、connection pool |
@@ -29,7 +29,7 @@
 | Gradleと配布SHA | [Wrapper properties](../gradle/wrapper/gradle-wrapper.properties) |
 | explicit dependency／plugin／BOM／DB・Buildpacks image | [Version Catalog](../gradle/libs.versions.toml) |
 | Spring ecosystem | Boot BOM。Modulithは専用BOM |
-| Vaadin ecosystem | Vaadin BOM |
+| UI dependency／asset／jte plugin | Version Catalog。静的資産はWebJarsから必要なファイルだけ同梱 |
 | 開発・資料DB image | [Compose](../docker/compose.yaml)。Catalogと同じPostgreSQL tag |
 | 資料toolchain | [Dockerfile](../docker/docs/Dockerfile)、[package.json](../docker/docs/package.json)、[lockfile](../docker/docs/package-lock.json) |
 | application version | [root build.gradle.kts](../build.gradle.kts)のversion |
