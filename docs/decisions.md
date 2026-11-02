@@ -1,6 +1,6 @@
 # Architecture Decision Records
 
-本書は、このstarterの設計判断の正本である。README、各ガイド、AGENTS.md、実装が矛盾する場合は本書を優先する。操作手順は[ドキュメント一覧](index.md)から参照する。
+本書は、このtemplateの設計判断の正本である。README、各ガイド、AGENTS.md、実装が矛盾する場合は本書を優先する。操作手順は[ドキュメント一覧](index.md)から参照する。
 
 ## ADRの運用
 
@@ -44,6 +44,7 @@
 | [ADR-028](#adr-028) | 標準HTMLによるサーバー描画と部分更新 |
 | [ADR-029](#adr-029) | 業務画面の共通レイアウトと視覚的な階層 |
 | [ADR-030](#adr-030) | jteの共通部品と機能別画面の配置 |
+| [ADR-031](#adr-031) | テンプレートの名称統一と作業ブランチ |
 
 <a id="adr-001"></a>
 ## ADR-001: 完成した技術基盤と依存方針
@@ -177,7 +178,7 @@ jOOQは一時PostgreSQLへFlywayを適用し、標準GenerationToolでSQL型を�
 
 generated型は原則 `internal.infrastructure` からだけ参照し、変更は再生成で行いGit管理外とする。生成sourceをCheckstyle／SpotBugs／coverage対象から除外するが、解析用classpathには保持する。手書きcodegenは品質検査する。
 
-**影響:** DockerをDB testの必須実行条件とする。starter動作に必要な最小system／sample dataはFlywayで登録可能だが、業務masterの大量・高頻度更新や汎用import基盤には用いない。
+**影響:** DockerをDB testの必須実行条件とする。template動作に必要な最小system／sample dataはFlywayで登録可能だが、業務masterの大量・高頻度更新や汎用import基盤には用いない。
 
 <a id="adr-009"></a>
 ## ADR-009: RESTとAPI versioning
@@ -538,3 +539,17 @@ UIはSpring Securityのフォーム認証・session・CSRFを使用する。通�
 home、auth、featureをpages直下に配置し、公開部品集はpages/samples/componentsへ置く。部品集はindex.jteから検索一覧と入力部品の断片を呼ぶ。共通エラー通知はcomponents/error-message.jteとする。分割は責務・再利用・描画単位に基づき、短いHTMLだけを理由に部品を増やさない。template pathは公開URLとは独立して管理する。
 
 **影響:** Controllerのview名とjteの呼び出し先を配置に合わせる。業務API、公開URL、認証、画面表示・操作は既存の契約を維持する。画面全体・部分更新・共通エラー・login・部品集の操作を既存の実browser testで検証する。
+
+
+<a id="adr-031"></a>
+## ADR-031: テンプレートの名称統一と作業ブランチ
+
+**状態:** Accepted。名称はADR-003、作業手順はADR-017を補足する。
+
+**背景:** repository、application、配布物、資料で同じproject名を使用し、案件への転用時の置換元を明確にする。また、一つの変更目的に必要な実装・設定・資料・検証を一つのbranchで確認できる必要がある。
+
+**決定:** projectの正式名を`spring-application-template`、画面等の表示名を`Spring Application Template`とする。Gradle project、Spring application、DB資料、資料用imageと関連設定、説明・実行例は同じ名称を使用する。Spring Boot等の外部dependency名、既存の認証設定key・環境変数、画面内ID、適用済みmigrationは、それぞれの契約・履歴として扱う。
+
+変更作業は目的単位の専用branchで行い、既定branchで直接編集しない。一つのbranchには、一つの目的を達成するための実装・設定・資料・testを含める。同じ目的の継続・修正はそのbranchで完結させ、異なる目的の作業やmerge済みbranchの再利用は避ける。新しい作業は既定branchを基点に`codex/<作業内容>`を作成する。利用者によるbranch名・基点の指定を優先する。未commit変更を保持し、無関係な変更を混在させない。AI向けの具体的な作業規則はrootのAGENTS.mdへ集約する。
+
+**影響:** JAR／OCIの名前と資料用image名は正式名に追従する。既存の認証設定とDB migration履歴は保持する。作業開始時にbranchと差分を確認し、完了時はbranch・変更範囲・検証結果を報告する。commit・push・PR作成・mergeは依頼された範囲で実施する。

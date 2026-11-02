@@ -1,6 +1,6 @@
 # 案件開始チェックリスト
 
-このstarterを案件のapplicationへ変更するためのチェックリスト。識別子、サンプル、認証・権限、DB、UI／API、外部環境、資料、検証を対象とする。設計の正本は[ADR](decisions.md)、日常の実装手順は[開発ガイド](developer-guide.md)。
+このtemplateを案件のapplicationへ変更するためのチェックリスト。識別子、サンプル、認証・権限、DB、UI／API、外部環境、資料、検証を対象とする。設計の正本は[ADR](decisions.md)、日常の実装手順は[開発ガイド](developer-guide.md)。
 
 ## 使い方と着手順
 
@@ -19,7 +19,7 @@
 | チーム開発開始前 | H: CI、I: 資料、J: 開発開始の検証 |
 | 本番公開前 | H: 配布先・運用、J: リリース前の検証 |
 
-本書の「もれなく」は、現行starterに存在する設定・実装の変更箇所と、接続が必要な案件環境を対象とする。個別業務の画面・データ・外部サービスの仕様は要件定義で追加する。
+本書の「もれなく」は、現行templateに存在する設定・実装の変更箇所と、接続が必要な案件環境を対象とする。個別業務の画面・データ・外部サービスの仕様は要件定義で追加する。
 
 ## A. 採用条件と入力値
 
@@ -35,18 +35,18 @@
 
 | 初期値／対象 | 変更箇所と連動先 |
 |---|---|
-| `spring-application-starter` | [settings.gradle.kts](../settings.gradle.kts)のrootProject.name、[application.yml](../src/main/resources/application.yml)のspring.application.name、[.tbls.yml](../.tbls.yml)のname、README／docsの現行説明・JAR実行例 |
+| `spring-application-template` | [settings.gradle.kts](../settings.gradle.kts)のrootProject.name、[application.yml](../src/main/resources/application.yml)のspring.application.name、[.tbls.yml](../.tbls.yml)のname、README／docsの現行説明・JAR実行例 |
 | `dev.template` | [root build.gradle.kts](../build.gradle.kts)のgroup。base packageと別に決定する。codegenは生成tool用の内部subprojectとして扱う |
 | `dev.template.application` | src/main/java・src/test/javaのdirectory、package／import／完全修飾名、[JooqCodegen](../codegen/src/main/java/dev/template/build/JooqCodegen.java)のtarget package、application.ymlのspringdoc.packages-to-scan、[AutoConfiguration.imports](../src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports)の完全修飾class名、docs中の現行package説明 |
 | `dev/template/application` | Java sourceのdirectory。SpotBugs／JaCoCoは`**/jooq/**`を除外し、verifyProductionJarは実class出力から検査するため対象は実際のclass出力から決まる |
 | package依存の検査 | [ArchitectureTest](../src/test/java/dev/template/application/ArchitectureTest.java)のpackage規約とApplication.classから導出する解析範囲。[SpotBugs filter](../config/spotbugs/exclude.xml)のclass名。package構造の規約を変える場合はpatternも追従 |
 | `dev.template.build`／`dev/template/build` | codegen/src/main/javaのdirectoryとpackage、root build.gradle.ktsのJooqCodegen／DocumentationMigrationのmainClass。application packageへ混ぜず、生成toolを配布から隔離する |
-| `Spring Application`等の表示 | src/main/jteのlayouts/application.jte・pages/home/index.jte・pages/auth/login.jte・pages/samples/components/と対応UI test |
+| `Spring Application Template`等の表示 | src/main/jteのlayouts/application.jte・pages/home/index.jte・pages/auth/login.jte・pages/samples/components/と対応UI test |
 | `0.1.0-SNAPSHOT` | root build.gradle.ktsのversion、docsのJAR名・release例。APIのmajor versionとは別管理 |
-| `spring-application-starter-docs:1` | root build.gradle.ktsのdocumentationImage、[docker/compose.yaml](../docker/compose.yaml)のdocs-tools.image、[renovate.json](../renovate.json)のignoreDeps。複数案件でtoolchainを変更するなら共有tagの衝突を避ける |
+| `spring-application-template-docs:1` | root build.gradle.ktsのdocumentationImage、[docker/compose.yaml](../docker/compose.yaml)のdocs-tools.image、[renovate.json](../renovate.json)のignoreDeps。複数案件でtoolchainを変更するなら共有tagの衝突を避ける |
 | `starter.security.local`／`starter.security.user` | 条件付きの名称変更。application.yml、[LocalAuthenticationConfiguration](../src/main/java/dev/template/application/security/LocalAuthenticationConfiguration.java)の条件とConfigurationProperties、build.gradle.ktsのbootRun、test resources、認証設定test。STARTER_SECURITY_LOCAL_ENABLED／APP_USER_*は環境変数契約であり別途判断 |
-| `starter-docs-db-` | root build.gradle.ktsの一時Compose project prefix。UUIDで隔離される技術名なので保持可能 |
-| `starter-*`のUI ID／`APPLICATION STARTER / UI EXAMPLES` | sampleを残す場合の内部IDと表示文言を区別する。ID変更時はFeatureUiIntegrationTestのselectorも更新する |
+| `template-docs-db-` | root build.gradle.ktsの一時Compose project prefix。UUIDで隔離される技術名なので保持可能 |
+| `starter-*`のUI ID／`Spring Application Template` | sampleを残す場合の内部IDと表示文言を区別する。ID変更時はFeatureUiIntegrationTestのselectorも更新する |
 
 - [ ] **B1 変更必須 — 案件識別子を反映する。** 上表のproject、group、application package、application識別名、表示名を置換する。生成toolも案件namespaceへ揃える。完了条件: Java、生成型、設定、画面、資料が同じ案件を指す。
 - [ ] **B2 判断必須 — version・技術名を確定する。** 初期version、資料image名、設定prefix、UI内部ID、一時Compose prefixの採用／変更を決める。変更する場合は表の連動先を全て更新する。
@@ -144,7 +144,7 @@
 - [ ] **J1 — 置換漏れを検索する。** 次の検索結果を意味ごとにreviewする。保持する技術名・ADRの履歴・本チェックリスト内の初期値例は除外理由を判断し、置換はその識別子の用途に基づいて判断する。
 
 ```bash
-rg -n --hidden -g '!.git/**' -g '!.gradle/**' -g '!build/**' -g '!codegen/build/**' -g '!config/local-env.properties' 'dev[./]template|spring-application-starter|Application Starter|APPLICATION STARTER|Feature API|feature:|starter\.security' .
+rg -n --hidden -g '!.git/**' -g '!.gradle/**' -g '!build/**' -g '!codegen/build/**' -g '!config/local-env.properties' 'dev[./]template|spring-application-template|Spring Application Template|Feature API|feature:|starter\.security' .
 rg -n 'feature|application\.jooq|SystemExecution' src codegen/src config .tbls.yml build.gradle.kts
 ```
 
@@ -184,7 +184,7 @@ rg -n 'feature|application\.jooq|SystemExecution' src codegen/src config .tbls.y
 | 選択肢 | 自動化する内容 | 追加・保守負担 | 向いている条件／限界 |
 |---|---|---|---|
 | **A: IDE refactor＋AIによる案件ごとの変更** | IDEでpackage／型の参照を変更し、AIが本書の連動箇所・設定・資料・testを更新。diffをreviewして既存Gradleで検証 | 専用tool不要。案件ごとのreviewは必要 | 案件数が少ない、業務への転用内容が毎回異なる場合。変更結果の確認は案件ごとのreviewで行う |
-| **B: Gradleの初期化task** | 一度入力した案件名・group・package・表示名を、対象fileとdirectoryへ決定的に反映。残存識別子の検査と既存buildへ接続 | 初期実装とtemplate更新時の置換対象保守。追加runtime依存は不要な構成を選べる | 同じstarterから繰り返し案件を開始する場合。適用範囲は案件開始時の名称設定とする |
+| **B: Gradleの初期化task** | 一度入力した案件名・group・package・表示名を、対象fileとdirectoryへ決定的に反映。残存識別子の検査と既存buildへ接続 | 初期実装とtemplate更新時の置換対象保守。追加runtime依存は不要な構成を選べる | 同じtemplateから繰り返し案件を開始する場合。適用範囲は案件開始時の名称設定とする |
 | **C: Copierによるparameter付きtemplate** | 質問への回答でfile／directoryを生成し、記録した回答とtemplate versionを使って更新を取り込む | Copier実行環境、template記法への移行、回答file、更新競合のreviewが必要 | 多数の派生案件へ基盤更新も継続配信したい場合。業務変更との競合やDB migrationは個別のreviewと移行設計で扱う |
 | **D: GitHub template＋CLI／APIによるrepository設定** | repository作成と、必要ならアクセス・保護規則・環境設定を選択した設定値で適用 | GitHub権限、組織policy、設定処理の保守が必要 | 外部repository設定も繰り返す場合。source内のpackage・業務名の置換は別処理なのでA／B／Cとの併用候補 |
 

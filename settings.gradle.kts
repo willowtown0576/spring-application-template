@@ -1,3 +1,3 @@
-rootProject.name = "spring-application-starter"
+rootProject.name = "spring-application-template"
 
 include("codegen")

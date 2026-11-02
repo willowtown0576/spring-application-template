@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <profiles version="23">
-    <profile kind="CodeFormatterProfile" name="Application Starter" version="23">
+    <profile kind="CodeFormatterProfile" name="Spring Application Template" version="23">
         <setting id="org.eclipse.jdt.core.compiler.source" value="25"/>
         <setting id="org.eclipse.jdt.core.compiler.compliance" value="25"/>
         <setting id="org.eclipse.jdt.core.compiler.codegen.targetPlatform" value="25"/>

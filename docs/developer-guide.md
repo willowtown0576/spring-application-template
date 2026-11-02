@@ -2,6 +2,10 @@
 
 [architecture](architecture.md)で責務と依存方向、[ADR](decisions.md)で採用判断を確認する。設計判断が変わる場合はADRを先に追加する。
 
+## 作業単位とブランチ
+
+[ADR-031](decisions.md#adr-031)に従い、一つの変更目的を専用branchで完結させる。新しい作業は既定branchを基点に作業branchを作り、目的に必要な実装・設定・資料・testをまとめる。同じ目的の修正は同じbranchで扱い、別目的の変更は分ける。既定branchでは直接編集せず、merge済みbranchは新しい作業に使わない。AI向けの具体的な規則は[root AGENTS.md](../AGENTS.md#作業ブランチ)を参照する。
+
 ## featureを実装する
 
 1. `api.command`／`api.query` に公開interface、用途別Param record、Failure／read modelを定義する。package-info.javaでNamed Interfaceを宣言する。
