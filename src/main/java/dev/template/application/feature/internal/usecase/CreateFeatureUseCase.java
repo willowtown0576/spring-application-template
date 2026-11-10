@@ -2,6 +2,8 @@ package dev.template.application.feature.internal.usecase;
 
 import dev.template.application.feature.internal.domain.Feature;
 import dev.template.application.feature.internal.domain.FeatureName;
+import java.time.Clock;
+import java.time.temporal.ChronoUnit;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Supplier;
@@ -10,6 +12,8 @@ import org.springframework.stereotype.Service;
 /** 作成処理の調整役。呼び出し元のトランザクション内でRepositoryを使う。 */
 @Service
 public final class CreateFeatureUseCase {
+    /** 登録時刻の供給元。 */
+    private final Clock clock;
     /** 新規Featureへ割り当てるUUID v7の供給元。 */
     private final Supplier<UUID> ids;
     /** Featureを永続化する書き込みPort。 */
@@ -20,8 +24,10 @@ public final class CreateFeatureUseCase {
      *
      * @param repository 書き込みPort
      * @param ids UUID v7を生成する関数
+     * @param clock 登録時刻の供給元
      */
-    public CreateFeatureUseCase(final FeatureRepository repository, final Supplier<UUID> ids) {
+    public CreateFeatureUseCase(final FeatureRepository repository, final Supplier<UUID> ids, final Clock clock) {
+        this.clock = Objects.requireNonNull(clock);
         this.repository = Objects.requireNonNull(repository);
         this.ids = Objects.requireNonNull(ids);
     }
@@ -30,10 +36,12 @@ public final class CreateFeatureUseCase {
      * 検証済みの名前からEntityを作り、一度だけ保存する。
      *
      * @param name 検証済みの名前
+     * @param active 有効状態
      * @return 保存したEntityのID
      */
-    public UUID execute(final FeatureName name) {
-        final var feature = new Feature(ids.get(), name);
+    public UUID execute(final FeatureName name, final boolean active) {
+        final var now = clock.instant().truncatedTo(ChronoUnit.MICROS);
+        final var feature = new Feature(ids.get(), name, active, now, now, 1);
         repository.insert(feature);
         return feature.id();
     }

@@ -17,7 +17,7 @@ Windowsでは `gradlew.bat` を使う。IDEではGradle projectとしてimport�
 1. `config/local-env.properties.example` を `config/local-env.properties` へコピーする。
 2. DEV_DB_PASSWORDに開発DBのpassword、APP_USER_NAME／APP_USER_PASSWORDにログインIDとpasswordを記入する。ログインpasswordは12文字以上・72 UTF-8 bytes以下。
 3. `./gradlew bootRun` を実行する。
-4. `http://localhost:8080/` を開く。
+4. `http://localhost:8080/login` を開き、設定した利用者としてログインする。ホームから各画面へ進む。
 
 local fileはUTF-8 Java Properties形式。値はJava Propertiesのliteralとして記述する。literal backslashは `\\` と記載する。HTTP timeout等も環境変数名で追記できる。
 
@@ -27,14 +27,16 @@ local fileはUTF-8 Java Properties形式。値はJava Propertiesのliteralとし
 
 | URL | 用途・必要な設定 |
 |---|---|
-| `/` | 匿名welcome |
-| `/components` | 匿名部品集。変更はブラウザー内だけ |
-| `/features` | DB作成・UUID検索。未ログインなら/loginへ誘導 |
+| `/` | 認証後のhome。機能選択の入口 |
+| `/components` | 認証後の部品集。変更はブラウザー内だけ |
+| `/features` | 条件検索・詳細・登録・更新。未ログインなら/loginへ誘導 |
 | `/api/v1/features` | 認証必須REST。正常系はintegrationTestでも確認可能 |
 | `/actuator/health` | 匿名health。詳細は非公開 |
 | `/swagger-ui/index.html` | API資料を有効化し、ops:readを持つ利用者でログイン |
 
 Swagger UIを使用する場合、local fileの `API_DOCUMENTATION_ENABLED=true` と `APP_USER_OPERATIONS_READ=true` の両方をコメント解除して再起動する。既にログインしていた場合はログアウトして再ログインする。port・context path・外部HTTP timeoutの任意設定もexampleに記載している。配布先用のDB接続設定と全体の設定一覧は[運用ガイド](operations.md#設定)を参照する。
+
+ログイン画面に業務ナビは表示しない。業務画面の左ナビは初期状態で閉じ、「メニュー」で開き、閉じるボタンまたはEscapeで閉じる。logout後はloginへ戻る。ダークモードはブラウザーへ保存され、ページ遷移・再読み込み後も維持する。
 
 部品集は再読み込みで初期データへ戻る。永続化の実装例には `/features` とFeatureCommands／FeatureQueriesを使用する。ログインとシステム実行は[運用ガイド](operations.md#authentication)を参照する。
 

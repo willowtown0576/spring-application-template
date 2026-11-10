@@ -8,14 +8,14 @@ import java.util.UUID;
  *
  * @param id 検索するID。null不可
  */
-public record FindFeatureParam(UUID id) {
+public record FindFeatureByIdParam(UUID id) {
     /**
      * 必須検索条件の欠落を呼出し側の誤りとして拒否する。
      *
      * @param id 検索するID
      * @throws NullPointerException idがnullの場合
      */
-    public FindFeatureParam {
+    public FindFeatureByIdParam {
         Objects.requireNonNull(id);
     }
 }

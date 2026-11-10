@@ -10,7 +10,7 @@
 flowchart LR
   accTitle: 依存方向
   accDescr: 公開APIとPortを境界とするコンパイル時の依存
-  ADAPTER[REST / MVC画面 / Batch / Scheduling] --> API[feature.api.command / query]
+  ADAPTER[REST / MVC画面 / Batch / Scheduling] --> API[feature.api.command / query / model]
   COMMAND[internal.command] -. implements .-> API
   QUERY[internal.query] -. implements .-> API
   COMMAND --> USECASE[internal.usecase]
@@ -31,6 +31,7 @@ flowchart LR
 |---|---|
 | `feature.api.command` | 公開Command、Param、Failure契約 |
 | `feature.api.query` | 公開Query、Param、read model |
+| `feature.api.model` | CommandとQueryで共用する公開の値型 |
 | `feature.api.authorization` | feature権限enumと認可annotation |
 | `feature.internal.command` | 認可、入力変換、transaction、UseCase呼び出し |
 | `feature.internal.usecase` | 業務調整、Repository Port。@Service以外のSpring型に非依存 |
@@ -49,7 +50,7 @@ flowchart LR
 
 Commandは更新の不変条件を守る。公開Paramを検証し、UseCaseがdomainを組み立ててRepositoryへ渡す。Commandのtransaction内で更新し、予期しないExceptionは伝播してrollbackする。期待される拒否は型付きFailureとして返す。
 
-Queryは参照用途のSQLとread modelを優先する。DataSourceが内部FeatureDataを取得し、FeatureQueriesImplが公開FeatureResultへ変換する。domain Entityを復元するためだけにUseCaseを通さない。
+Queryは参照用途のSQLとread modelを優先する。DataSourceが内部FeatureDataを取得し、FeatureQueriesImplが公開FeatureDetailsへ変換する。domain Entityを復元するためだけにUseCaseを通さない。
 
 | 制約 | 内容 |
 |---|---|
@@ -91,7 +92,7 @@ sequenceDiagram
 
 package-info.javaのNamed Interfaceが公開範囲を定める。module間の参照範囲は公開APIとする。Javaのpackage間連携のためpublicな型でも、Modulithではinternalとして扱う。Beanはpackage-privateとconstructor injectionを基本にする。
 
-featureはcommonとjooq、webはfeatureのcommand／query、common、loggingへの依存を宣言する。Modulithのverifyがmodule cycleと公開境界を検査する。ArchUnitはgenerated SQL型がinfrastructureに閉じること、domain／UseCaseのframework非依存などを追加検査する。
+featureはcommonとjooq、webはfeatureのcommand／query／model、common、loggingへの依存を宣言する。Modulithのverifyがmodule cycleと公開境界を検査する。ArchUnitはgenerated SQL型がinfrastructureに閉じること、domain／UseCaseのframework非依存などを追加検査する。
 
 ## featureを跨ぐ操作
 

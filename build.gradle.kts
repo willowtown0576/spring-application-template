@@ -63,6 +63,7 @@ jte { generate() }
 val prepareUiAssets = tasks.register<Sync>("prepareUiAssets") {
     description = "Packages pinned browser assets without CDN or Node dependencies."
     val bundledAssets = listOf("META-INF/resources/webjars/bootstrap/**/dist/css/bootstrap.min.css",
+        "META-INF/resources/webjars/bootstrap/**/dist/js/bootstrap.min.js",
         "META-INF/resources/webjars/htmx.org/**/dist/htmx.min.js",
         "META-INF/resources/webjars/alpinejs/**/dist/cdn.min.js",
         "META-INF/resources/webjars/bootstrap/**/LICENSE",

@@ -75,7 +75,22 @@ codegen／test／資料生成には用途別の一時DBとcredentialを使用す
 
 Flywayはfeature directoryを標準再帰scanする。共通履歴は `public.flyway_schema_history`。適用済みmigrationは履歴として保持し、変更は新migrationとする。productionも原則起動時適用、運用要件により事前migrationを選べる。
 
-最小業務schemaは [V1](../src/main/resources/db/migration/feature/V1__create_feature.sql) のfeature.feature。UUIDのidとvarchar(100)のnameを持ち、NOT NULL／PK／ASCII spaceだけの値を拒否するCHECKを定義する。nameはcode point単位で検証し、同名を許容する。初期状態は空tableとし、列はidとnameで構成する。
+業務schemaはfeature。[V1](../src/main/resources/db/migration/feature/V1__create_feature.sql)と[V3](../src/main/resources/db/migration/feature/V3__feature_operations.sql)と[V4](../src/main/resources/db/migration/feature/V4__feature_deletion_history.sql)で検索・登録・更新・削除サンプルを構成する。初期状態は空tableとし、nameはcode point単位で検証し、同名を許容する。
+
+| table／列 | 契約 |
+|---|---|
+| feature.id | UUID、PK。application側でv7生成 |
+| feature.name | varchar(100)、NOT NULL、ASCII spaceのみを拒否 |
+| feature.status | ACTIVE／INACTIVE、NOT NULL、既定ACTIVE |
+| feature.created_at | timestamptz、登録時刻。更新で維持 |
+| feature.updated_at | timestamptz、更新時刻。created_at以上 |
+| feature.version | bigint、初期1、実変更ごとに1増加 |
+| feature_history | 元のid／name／status／created_at／updated_at／versionと、deleted_at／deleted_byを保存。PKは元のid |
+| registration_request | actor＋request_idをPKに、payload_hashとresult_idsを保存 |
+
+名前／更新日時とIDの複合indexをseekに利用する。statusの絞り込みと名前の部分一致は追加条件とする。大量データで部分一致が支配的になる案件では実データの実行計画を確認して索引方式を選ぶ。カーソルはsnapshotを固定しない。
+
+更新はID順に対象行をlockし、全件の存在・versionを確認してから書き込む。条件付きUPDATEの件数不一致は技術例外としてtransactionをrollbackする。複数登録の再送はregistration_requestの一意制約で直列化し、行と結果記録を一つのtransactionで確定する。適用済みV1／V2は変更せず、既存行はV3でstatus・日時・versionを補完する。
 
 起動に必要な最小system／sample dataはFlywayで登録できる。商品・顧客等の大量・高頻度master更新は案件の業務機能として設計する。
 
@@ -107,3 +122,11 @@ JobParameters／ExecutionContextの保存内容は、処理の識別・再実行
 `./gradlew databaseDocumentation` でMarkdownとER SVGをbuild/documentation/databaseへ生成する。構造はmigration適用後のDBから取得する。COMMENTの修正はmigration、手書きの補足は本書、判断理由はADRへ置く。生成物の変更はsourceを修正して再生成する。詳細は[資料生成](documentation.md)を参照する。
 
 業務schemaを追加した場合、jOOQとtblsへのschema名の列挙は不要。生成型はschema別packageとなり、既存schemaの型名・配置を変えずに追加できる。新しいtechnical schemaを導入する場合は生成対象・資料公開範囲を判断し、必要なら除外設定を更新する。
+
+## 削除履歴
+
+feature.feature_historyは削除直前のsnapshotを保持する。名前・状態・登録日時・更新日時・versionをそのまま保存し、deleted_atとdeleted_byを付加する。deleted_atはupdated_at以上とし、同じ複数削除には共通時刻を使用する。元データは削除するため、historyからfeature.featureへのFKは定義しない。PKによって同じIDの履歴の上書きを防ぎ、applicationは削除したIDを再利用しない。
+
+RepositoryのarchiveAndDeleteはlock済みEntityのINSERTと、ID・version条件によるDELETEを行う。呼び出し元Commandのtransactionで全件の履歴保存と削除を確定する。履歴INSERT後のDELETE失敗もrollbackの対象。検索DataSourceは現在値のtableだけを読む。
+
+履歴の自動削除・復元・更新は行わない。履歴は登録・更新の監査ログではなく削除時の退避であり、保持期限や復元機能を導入する場合は制約と運用手順を案件で定める。登録再送台帳は履歴と独立して維持する。

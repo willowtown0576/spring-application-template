@@ -1,12 +1,18 @@
 package dev.template.application.feature.api.command;
 
+import dev.template.application.feature.api.model.FeatureStatus;
+
 /**
- * Feature作成の入力。HTTP / MVC画面の入力をこのrecordへ変換してCommandへ渡す。
- *
- * <p>nameのnull・文字数・Unicode整合性はCommandで判定し、INVALID_NAMEとして返す。
- * 各adapterからの呼出しに共通の入力規則を定義する。
- *
- * @param name 入力文字列をそのまま保存する名前
+ * Featureの登録入力。名前と状態の業務検証はCommandで行う。
+ * @param name 入力された名前
+ * @param status 有効状態
  */
-public record CreateFeatureParam(String name) {
+public record CreateFeatureParam(String name, FeatureStatus status) {
+    /**
+     * 有効状態で登録する入力を作る。
+     * @param name 入力された名前
+     */
+    public CreateFeatureParam(final String name) {
+        this(name, FeatureStatus.ACTIVE);
+    }
 }
