@@ -17,12 +17,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import dev.template.application.Application;
 import dev.template.application.common.Result;
 import dev.template.application.feature.api.authorization.FeatureAuthority;
-import dev.template.application.feature.api.command.CreateFailure;
 import dev.template.application.feature.api.command.CreateFeatureParam;
+import dev.template.application.feature.api.command.FeatureCommandFailure;
 import dev.template.application.feature.api.command.FeatureCommands;
 import dev.template.application.feature.api.query.FeatureQueries;
-import dev.template.application.feature.api.query.FeatureResult;
-import dev.template.application.feature.api.query.FindFeatureParam;
+import dev.template.application.feature.api.query.FindFeatureByIdParam;
 import dev.template.application.feature.internal.domain.Feature;
 import dev.template.application.feature.internal.query.FeatureDataSource;
 import dev.template.application.feature.internal.usecase.FeatureRepository;
@@ -211,10 +210,10 @@ class DatabaseIntegrationTest {
         final var system = context.getBean(SystemExecution.class);
         final var step = new StepBuilder("metadata-check", jobs)
             .tasklet((contribution, chunk) -> system.call(SystemActor.BATCH, () -> {
-                final var created = (Result.Success<UUID, CreateFailure>) commands
+                final var created = (Result.Success<UUID, FeatureCommandFailure>) commands
                     .create(new CreateFeatureParam("batch-created"));
                 createdId.set(created.value());
-                assertThat(queries.find(new FindFeatureParam(created.value()))).isPresent();
+                assertThat(queries.findById(new FindFeatureByIdParam(created.value()))).isPresent();
                 return RepeatStatus.FINISHED;
             }), transactions).build();
         final var job = new JobBuilder("metadata-check", jobs).listener(context.getBean(JobExecutionListener.class))
@@ -231,7 +230,7 @@ class DatabaseIntegrationTest {
             }).get();
         }
         try {
-            assertThat(queries.find(new FindFeatureParam(createdId.get()))).isPresent();
+            assertThat(queries.findById(new FindFeatureByIdParam(createdId.get()))).isPresent();
         } finally {
             sql.deleteFrom(FEATURE_).where(FEATURE_.ID.eq(createdId.get())).execute();
         }
@@ -265,13 +264,17 @@ class DatabaseIntegrationTest {
     void commitsCreatedFeatureAndReadsThroughPublicApi() {
         final var result = commands.create(new CreateFeatureParam("😀".repeat(100)));
         final UUID id = switch (result) {
-            case Result.Success<UUID, CreateFailure>(var value) -> value;
-            case Result.Failure<UUID, CreateFailure>(var reason) -> throw new AssertionError(reason);
+            case Result.Success<UUID, FeatureCommandFailure>(var value) -> value;
+            case Result.Failure<UUID, FeatureCommandFailure>(var reason) -> throw new AssertionError(reason);
         };
         try {
             assertThat(id.version()).isEqualTo(7);
-            assertThat(queries.find(new FindFeatureParam(id))).contains(new FeatureResult(id, "😀".repeat(100)));
-            assertThat(queries.find(new FindFeatureParam(ID))).isEmpty();
+            assertThat(queries.findById(new FindFeatureByIdParam(id))).hasValueSatisfying(found -> {
+                assertThat(found.id()).isEqualTo(id);
+                assertThat(found.name()).isEqualTo("😀".repeat(100));
+                assertThat(found.version()).isEqualTo(1);
+            });
+            assertThat(queries.findById(new FindFeatureByIdParam(ID))).isEmpty();
         } finally {
             sql.deleteFrom(FEATURE_).where(FEATURE_.ID.eq(id)).execute();
         }
@@ -305,7 +308,8 @@ class DatabaseIntegrationTest {
     @Test
     @WithTestUser(FeatureAuthority.WRITE)
     void directQueryInvocationAlsoEnforcesAuthorization() {
-        assertThatThrownBy(() -> queries.find(new FindFeatureParam(ID))).isInstanceOf(AccessDeniedException.class);
+        assertThatThrownBy(() -> queries.findById(new FindFeatureByIdParam(ID)))
+            .isInstanceOf(AccessDeniedException.class);
         verifyNoInteractions(dataSource);
     }
 
@@ -403,9 +407,9 @@ class DatabaseIntegrationTest {
      */
     @Test
     void operationLogsDoNotDumpArgumentsOrResults(final CapturedOutput output) {
-        final var result = (Result.Success<UUID, CreateFailure>) commands
+        final var result = (Result.Success<UUID, FeatureCommandFailure>) commands
             .create(new CreateFeatureParam("private-person-secret-token"));
-        assertThat(queries.find(new FindFeatureParam(result.value()))).isPresent();
+        assertThat(queries.findById(new FindFeatureByIdParam(result.value()))).isPresent();
         assertThat(commands.create(new CreateFeatureParam(" "))).isInstanceOf(Result.Failure.class);
         assertThat(output.getAll()).contains("Operation start", "Operation success", "Operation failure")
             .doesNotContain("private-person-secret-token", result.value().toString())
@@ -421,8 +425,8 @@ class DatabaseIntegrationTest {
             assertThat(TransactionSynchronizationManager.isCurrentTransactionReadOnly()).isTrue();
             assertThat(sql.fetchSingle("show transaction_read_only").get(0, String.class)).isEqualTo("on");
             return invocation.callRealMethod();
-        }).when(dataSource).find(ID);
-        assertThat(queries.find(new FindFeatureParam(ID))).isEmpty();
+        }).when(dataSource).findById(ID);
+        assertThat(queries.findById(new FindFeatureByIdParam(ID))).isEmpty();
     }
 
     /** 同じIDを二度挿入し、主キー制約が重複を拒否することを検証する。 */
@@ -450,8 +454,8 @@ class DatabaseIntegrationTest {
     @Test
     void rejectsMissingPublicApiParameters() {
         assertThatThrownBy(() -> commands.create(null)).isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> queries.find(null)).isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> new FindFeatureParam(null)).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> queries.findById(null)).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new FindFeatureByIdParam(null)).isInstanceOf(NullPointerException.class);
     }
 
     /** 100 code pointを超える名前を指定し、DBの文字数制約によって保存が拒否されることを検証する。 */
@@ -499,7 +503,8 @@ class DatabaseIntegrationTest {
     @ValueSource(strings = {"", "   ", "\u0000", "\uD800"})
     void returnsTypedFailureWithoutWriting(final String name) {
         assertThat(commands.create(new CreateFeatureParam(name)))
-            .isEqualTo(new Result.Failure<>(CreateFailure.INVALID_NAME));
+            .isEqualTo(new Result.Failure<>(new FeatureCommandFailure(java.util.List
+                .of(new FeatureCommandFailure.Issue(1, "name", FeatureCommandFailure.Reason.INVALID_NAME)))));
         verifyNoInteractions(repository);
     }
 
@@ -538,10 +543,10 @@ class DatabaseIntegrationTest {
         final var system = context.getBean(SystemExecution.class);
         context.getBean(TaskScheduler.class).schedule(() -> {
             try {
-                assertThatThrownBy(() -> queries.find(new FindFeatureParam(ID)))
+                assertThatThrownBy(() -> queries.findById(new FindFeatureByIdParam(ID)))
                     .isInstanceOf(AuthenticationCredentialsNotFoundException.class);
                 system.call(SystemActor.SCHEDULER, () -> {
-                    assertThat(queries.find(new FindFeatureParam(ID))).isEmpty();
+                    assertThat(queries.findById(new FindFeatureByIdParam(ID))).isEmpty();
                     assertThatThrownBy(() -> commands.create(new CreateFeatureParam("scheduler-denied")))
                         .isInstanceOf(AccessDeniedException.class);
                     return null;

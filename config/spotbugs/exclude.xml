@@ -6,4 +6,28 @@
         <Field name="repository"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
+    <!-- Command use cases share the transaction-aware repository through dependency injection. -->
+    <Match>
+        <Class name="dev.template.application.feature.internal.usecase.CreateFeaturesUseCase"/>
+        <Field name="repository"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+    <!-- Update execution shares the transaction-aware repository through dependency injection. -->
+    <Match>
+        <Class name="dev.template.application.feature.internal.usecase.UpdateFeaturesUseCase"/>
+        <Field name="repository"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+    <!-- Deletion shares the transaction-aware repository through dependency injection. -->
+    <Match>
+        <Class name="dev.template.application.feature.internal.usecase.DeleteFeaturesUseCase"/>
+        <Field name="repository"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+    <!-- Boot JsonMapper is immutable after construction and intentionally shared. -->
+    <Match>
+        <Class name="dev.template.application.web.FeatureSearchCursorCodec"/>
+        <Field name="mapper"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
 </FindBugsFilter>

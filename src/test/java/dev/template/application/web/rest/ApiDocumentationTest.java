@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import dev.template.application.Application;
 import dev.template.application.security.OperationsAuthority;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Objects;
@@ -65,8 +66,8 @@ class ApiDocumentationTest {
         // 公開契約全体を取得する。個別APIの仕様は各featureのtestで検証する。
         final String yaml = mvc
             .perform(get("/v3/api-docs.yaml").with(user("operator").authorities(OperationsAuthority.READ)))
-            .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
-        assertThat(yaml).contains("openapi:", "paths:").doesNotContain("/actuator", "/test-session");
+            .andExpect(status().isOk()).andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        assertThat(yaml).contains("openapi:", "paths:", "認証:").doesNotContain("/actuator", "/test-session");
 
         // 取得に成功した資料だけを出力する。
         final Path output = Path.of(System.getProperty("documentation.api.output"));

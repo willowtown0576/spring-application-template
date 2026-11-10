@@ -45,6 +45,14 @@
 | [ADR-029](#adr-029) | 業務画面の共通レイアウトと視覚的な階層 |
 | [ADR-030](#adr-030) | jteの共通部品と機能別画面の配置 |
 | [ADR-031](#adr-031) | テンプレートの名称統一と作業ブランチ |
+| [ADR-032](#adr-032) | 業務操作sample・競合制御・再送・カーソル検索 |
+| [ADR-033](#adr-033) | Feature公開APIの操作語彙と型の命名 |
+| [ADR-034](#adr-034) | OpenAPIの説明・実行例と契約検証 |
+| [ADR-035](#adr-035) | 認証から始まる画面導線と開閉ナビゲーション |
+| [ADR-036](#adr-036) | 削除時の履歴退避と全件整合性 |
+| [ADR-037](#adr-037) | ナビの動作・一括操作の配置・テーマ保持 |
+| [ADR-038](#adr-038) | 操作の配色・幅・配置の統一 |
+| [ADR-039](#adr-039) | HTMLの意味に沿った操作と標準サイドメニュー |
 
 <a id="adr-001"></a>
 ## ADR-001: 完成した技術基盤と依存方針
@@ -128,7 +136,7 @@ application Beanはcomponent scanとconstructor injectionで登録する。UseCa
 <a id="adr-006"></a>
 ## ADR-006: 公開契約・Result・最小sample
 
-**状態:** Accepted
+**状態:** Accepted。公開Java契約の命名とCommand失敗型は[ADR-033](#adr-033)で更新する。
 
 **背景:** 業務上の拒否と技術障害を区別し、adapterによらず同じ契約を使用する。
 
@@ -136,7 +144,7 @@ application Beanはcomponent scanとconstructor injectionで登録する。UseCa
 
 期待される業務結果はFailure、予期しない技術障害・到達不能な内部状態はException。業務失敗は型付き理由、技術障害は意味を持つ既存Exceptionで表現する。transaction内の技術例外は境界へ伝播し、rollbackを成立させる。例外変換が必要ならrollback semanticsを保つ境界で行う。
 
-最小sample契約:
+採用時の最小sample契約:
 
 - `FeatureCommands.create(CreateFeatureParam)` の戻り値は `Result<UUID, CreateFailure>`。
 - `FeatureQueries.find(FindFeatureParam)` の戻り値は `Optional<FeatureResult>`。未検出はempty。
@@ -183,7 +191,7 @@ generated型は原則 `internal.infrastructure` からだけ参照し、変更�
 <a id="adr-009"></a>
 ## ADR-009: RESTとAPI versioning
 
-**状態:** Accepted
+**状態:** Accepted。公開Java契約の命名とCommand失敗型は[ADR-033](#adr-033)で更新する。
 
 **背景:** HTTPの都合を業務契約へ持ち込まず、標準の応答を使う。
 
@@ -498,7 +506,7 @@ releaseArtifactsはJAR・資料の生成と収集を担当する。CIとrelease�
 <a id="adr-028"></a>
 ## ADR-028: 標準HTMLによるサーバー描画と部分更新
 
-**状態:** Accepted。ADR-002／003／010／011／018／020／021のUI・frontend build・UI認証に関する判断を更新する。旧UIとテーマ比較は本判断で置き換える。
+**状態:** Accepted。画面公開範囲・共通shellの後継判断は[ADR-035](#adr-035)。。ADR-002／003／010／011／018／020／021のUI・frontend build・UI認証に関する判断を更新する。旧UIとテーマ比較は本判断で置き換える。
 
 **背景:** 検索一覧・詳細・入力フォームを中心とする業務画面を、商用UI製品の契約に依存せず構築する。業務処理からUI技術を分離し、外観と操作を共通化する。
 
@@ -518,7 +526,7 @@ UIはSpring Securityのフォーム認証・session・CSRFを使用する。通�
 <a id="adr-029"></a>
 ## ADR-029: 業務画面の共通レイアウトと視覚的な階層
 
-**状態:** Accepted
+**状態:** Accepted。画面公開範囲・共通shellの後継判断は[ADR-035](#adr-035)。
 
 **背景:** 継続的に使う業務画面には、操作対象を判断しやすい情報の階層と、全画面で一貫した外観が必要である。
 
@@ -553,3 +561,137 @@ home、auth、featureをpages直下に配置し、公開部品集はpages/sample
 変更作業は目的単位の専用branchで行い、既定branchで直接編集しない。一つのbranchには、一つの目的を達成するための実装・設定・資料・testを含める。同じ目的の継続・修正はそのbranchで完結させ、異なる目的の作業やmerge済みbranchの再利用は避ける。新しい作業は既定branchを基点に`codex/<作業内容>`を作成する。利用者によるbranch名・基点の指定を優先する。未commit変更を保持し、無関係な変更を混在させない。AI向けの具体的な作業規則はrootのAGENTS.mdへ集約する。
 
 **影響:** JAR／OCIの名前と資料用image名は正式名に追従する。既存の認証設定とDB migration履歴は保持する。作業開始時にbranchと差分を確認し、完了時はbranch・変更範囲・検証結果を報告する。commit・push・PR作成・mergeは依頼された範囲で実施する。
+
+
+<a id="adr-032"></a>
+## ADR-032: 業務操作sample・競合制御・再送・カーソル検索
+
+**状態:** Accepted。ADR-006／007／009のsample契約を拡張する。
+
+**背景:** 単件・複数の登録と更新、条件検索を同じfeature公開APIから利用し、競合や再送でもデータを壊さない業務画面の基本形を提供する。
+
+**決定:** feature.featureへstatus（ACTIVE／INACTIVE）、created_at、updated_at、versionを新migrationで追加する。新規登録のversionは1、登録日時と更新日時は同じサーバー時刻とする。日時はUTC・microsecond精度、画面はAsia/Tokyoで秒まで表示する。名前・状態に変更がある行だけversionを1増やし、更新日時を進める。同じ複数更新の変更行には共通時刻を使い、時刻が巻き戻る場合は従来の更新日時を下限とする。競合判定はversionで行う。
+
+複数処理は1〜100行、一回のCommand transactionで全件成功または全件取り消しとする。入力エラーには1始まりの行番号・項目・型付き理由を持たせる。更新対象の重複IDを拒否する。RepositoryはID順で対象を行lockし、UseCaseが全件の存在とversionを検証してから書き込む。実更新もID・version条件を使用し、件数不一致等の技術障害は例外を伝播して全件rollbackする。期待される拒否は書き込み前のResult.Failureで返す。単件更新も同じ処理を使用する。
+
+複数登録は信頼されたadapterから得た実行主体・UUID操作キー・入力内容を識別する。同じ主体・キー・同じ内容の再送は同じ登録結果を返し、内容が違う場合は409とする。DBの一意制約とON CONFLICTで同時再送を直列化し、操作キー・内容のSHA-256・結果IDを登録と同じtransactionで保存する。キーは有効期限で再利用可能にせず、結果を保持する。保管期間と削除は案件の運用で決定し、削除したキーの再送は新規登録となることを考慮する。名前そのものの同一登録は許容する。
+
+検索は名前の部分一致（英字大小を区別せず、全半角を区別し、前後空白を除去）、任意のstatus条件のANDとする。%と_は通常文字として扱う。名前順または更新日時順の一項目と昇降順を選択し、同値は内部IDで確定する。既定は更新日時降順、20件、上限100件。jOOQのseekとsize＋1件取得で前後のカーソルを作り、COUNT・OFFSET・任意ページへのjumpは使用しない。名前順はDBの文字列照合順序とする。
+
+公開Queryは型付きcursorを扱い、web adapterが版・検索条件・sort・方向・件数と境界をBase64URLのJSONへ変換する。tokenは暗号化・認可の代替ではない。長さと形式、検索条件との一致を検証し、不正cursorは400とする。検索時には毎回認可と条件を適用する。並び値・statusの変更による閲覧中の再表示や未表示は許容し、結果全体のsnapshotは保持しない。
+
+UIは現在ページ内の選択行を専用フォームで編集する。ページ移動・条件変更は選択を解除し、保存後は条件とsortを保持して先頭へ戻る。複数登録は行追加・削除を備える。エラー時は入力を保持し、競合時は最新内容との比較と明示的な再編集を経て再保存する。ID・version・登録日時は表示項目にせず、更新日時を表示する。未保存入力の離脱は確認する。通常フォームを基本に、検索結果の部分更新へhtmx、入力行・選択・離脱確認へAlpine.jsを使う。
+
+**影響:** 旧RESTの作成・ID検索を維持し、単件更新・複数登録／更新・検索を追加する。UIのID検索フォームは一覧・詳細・編集へ置き換える。公開API、DB制約、全件rollback、同時更新・同時再送、cursorの同値・前後移動・削除、認可、実browserの操作を検証する。SQL型・DB資料・OpenAPIを再生成する。
+
+
+<a id="adr-033"></a>
+## ADR-033: Feature公開APIの操作語彙と型の命名
+
+**状態:** Accepted。ADR-006／009／032のJava公開契約の命名とCommand失敗表現を更新する。
+
+**背景:** 同じ登録操作にcreateとregisterを使い、単件登録だけ異なる失敗型を返すと、利用者は業務の違いと命名上の揺れを区別する必要が生じる。入力、参照内容、検索ページ、カーソルの責務を名前と配置で判断できる公開契約が必要である。
+
+**決定:** 登録操作はcreate、更新操作はupdateに統一する。公開methodはcreate／createMany／update／updateMany、入力は同じ動詞と対象の単複を持つCreateFeatureParam／CreateFeaturesParam／UpdateFeatureParam／UpdateFeaturesParamとする。複数入力はrowsを持ち、各行は対応する単件入力型を使用する。複数登録の操作者・操作キーはCreateFeaturesParamが持つ。
+
+全Commandの失敗型をFeatureCommandFailureへ統一する。単件も一行の入力として同じIssue・Reasonで表現し、単件登録専用の失敗enumを設けない。単件の行番号は1、操作全体の問題は0とする。共通Resultは成功／失敗のvariantを表す型、FeatureCommandFailureはFeature更新操作の業務拒否を表す型として区別する。
+
+ID参照はfindById(FindFeatureByIdParam)、条件検索はsearch(SearchFeaturesParam)とする。一件の参照内容はFeatureDetails、検索結果全体はFeatureSearchPage、ページ境界はFeatureSearchCursor、並び項目はFeatureSortFieldとする。FeatureDetailsは詳細と一覧行で共用し、同じ内容に別名のread modelを増やさない。CommandとQueryで共用するFeatureStatusはapi.modelに置き、modelのNamed Interfaceで公開する。
+
+内部のUseCaseもCreateFeatureUseCase／CreateFeaturesUseCase／UpdateFeaturesUseCaseに分け、executeで対応する操作を実行する。Repositoryの登録再送処理はreserveCreation／completeCreation、予約結果はCreationReservationとし、Feature登録入力と再送予約を区別する。RESTの型は操作＋Feature／Features＋Request／Responseで命名し、HTTP入力と業務Paramの役割を区別する。
+
+**影響:** 公開Java型・method名・単件登録の失敗型を変更し、すべての呼び出し元・test・資料を合わせる。旧名のaliasは設けない。RESTのURL、JSON項目、成功status、既存の失敗status、検索・更新・再送の意味とDB schemaを維持する。単件登録の422応答にも共通のissuesを付与する。OpenAPI schema名とoperationIdは新しいJava名に追従する。適用済みmigrationと永続データは変更しない。
+
+
+<a id="adr-034"></a>
+## ADR-034: OpenAPIの説明・実行例と契約検証
+
+**状態:** Accepted。ADR-009／015／033のAPI資料を補足する。
+
+**背景:** 型とpathだけの資料では、項目間の関係、複数行入力、競合・再送・カーソルの契約を判断できない。生成資料を単独で読む利用者が、HTTP操作と失敗後の対処を理解できる説明と具体例を必要とする。
+
+**決定:** Controller／DTOから抽出した契約へ、web adapterのfeature別OpenApiCustomizerで業務文脈を持つ入力・応答・エラー例、項目の説明・必須条件・上限を補完する。Command／Queryの公開型へHTTP資料用annotationを持ち込まない。共通の認証・CSRF・ProblemDetailは共通OpenAPI設定、Feature固有の利用契約・例はFeatureOpenApiConfigurationが所有する。
+
+例は架空の部署の設備保守契約を使い、UUID、名前、状態、versionを相互に対応させる。複数操作は二行以上とし、行番号付き失敗も例示する。検索は条件一式と実codecで作ったcursor、前後移動と終端、結果変動の契約を記載する。UUIDとcursorは架空データの説明用であり、稼働DBへ例示データの存在を要求しない。必要なID・version・cursorは実応答から取得することを明記する。
+
+資料の例をテストから取得して実APIへ入力し、登録・更新・再送・競合・検索の意味との整合性を検証する。生成YAMLは直接編集せず、メタデータとtestを修正して再生成する。
+
+**影響:** OpenAPI YAMLの説明・examples・schema・security定義を充実させる。HTTPの実行処理とDB schemaは変更しない。API追加・変更時は説明と具体例、資料契約testも一緒に更新する。
+
+
+<a id="adr-035"></a>
+## ADR-035: 認証から始まる画面導線と開閉ナビゲーション
+
+**状態:** Accepted。ナビ実装は[ADR-039](#adr-039)によりSuperseded。ADR-028／029／030の画面公開範囲・共通shellを更新する。
+
+**背景:** ログインと業務画面に同じナビ付きlayoutを使うと、認証前後の状態と操作開始点が曖昧になる。本文の作業領域を確保し、画面幅によらず明示的にナビを開く構成が必要である。
+
+**決定:** ログイン画面はナビ・業務headerを持たない独立したlayoutとする。未認証でhome・部品集・業務画面へアクセスした場合は/loginへ誘導する。ログイン成功後はhomeで機能を選択する。認証済みの/loginはhomeへ戻し、logout後は/login?logoutで完了を通知する。asset、login、error、healthの公開とRESTの401／403契約は維持する。
+
+HTML headと配布assetはlayouts/base.jteへ集約し、認証画面とapplication shellで共用する。業務画面の共通shellはheader・現在地・本文を持ち、homeから一覧・詳細・入力フォーム・部品集へ進める。本文は共通の最大幅・余白、各画面の見出しとcardで構成する。
+
+左ナビは全画面幅で初期状態を閉じ、headerのメニューボタンから開く。HTML標準dialogのshowModal／closeをAlpine.jsから呼び、ブラウザー標準のfocus制御・背景のinert・Escapeでの閉鎖を利用する。ナビ内の閉じるボタンでも閉じ、閉じたら起点へfocusを戻す。ナビ操作は入力内容を変えず、ページ遷移時の未保存確認を維持する。JavaScript無効時は通常リンクによる代替ナビを提供する。
+
+**影響:** 公開home／部品集の匿名アクセスを終了する。認証・logout・context path・未保存入力・通常フォーム・desktop／mobileの開閉とfocusを実browserで検証し、画面captureを確認する。Bootstrapの標準classと既存Alpine.jsを使い、新しいUI依存は追加しない。
+
+
+<a id="adr-036"></a>
+## ADR-036: 削除時の履歴退避と全件整合性
+
+**状態:** Accepted。ADR-032／033の操作sampleへ削除を追加する。
+
+**背景:** 一覧からデータを除外する操作を、状態の無効化と区別して提供する必要がある。削除前の値と実行主体・日時を保持し、履歴だけが残る・元データだけが消える等の不整合を防ぐ。
+
+**決定:** feature.feature_historyへ削除直前のid／name／status／created_at／updated_at／versionをそのまま保存し、deleted_at／deleted_byを付加する。同じtransactionでfeature.featureから削除する。historyのPKは元のidとし、元データへのFKは設けない。削除で保存済みversion・更新日時を改変しない。deleted_atはUTC microsecond、全削除行で共通とし、更新日時を下回らない。履歴は自動削除・上書きを行わない。
+
+公開Commandはdelete(DeleteFeatureParam)／deleteMany(DeleteFeaturesParam)、失敗は既存FeatureCommandFailureを使用する。削除操作の操作者と、id・期待versionを持つFeatureDeletionTargetを分離して表現する。操作者は信頼されたadapterが認証から取得し、HTTP bodyでは指定させない。権限はfeature:write。1〜100件、重複ID・不正version・未検出・競合を全件検査する。ID順でlockし、全件の存在とversionが一致してから履歴保存・条件付き削除を行う。件数不一致やDB障害は例外を伝播し、履歴と元データを全件rollbackする。
+
+RESTはDELETE /api/v1/features/{id}?version=1とPOST /api/v1/features/bulk-deleteを使用する。複数削除はDELETE bodyのclient互換性に依存せず、targets配列を明示する。成功は200と対象IDまたは入力順のID配列。404／409／422の意味と行番号は更新と同じ。削除の再送は404となり、履歴を増やさない。登録再送台帳は維持し、削除後の登録再送も以前のIDを返す。削除済みデータを再登録しない。
+
+UIは詳細から単件、一覧の現在ページの選択から複数の削除確認画面へ進む。対象名・件数と履歴保存の意味を確認してPOSTする。競合時に期待versionを自動更新せず、明示的に最新内容の確認をやり直す。成功後は条件を維持して一覧先頭へ戻る。ID・versionは画面本文へ表示しない。
+
+**影響:** V4 migration、公開API、HTTP adapter、確認画面、OpenAPIの具体例・DB資料・testを更新する。履歴は削除時の退避であり、登録・更新ごとの監査ログではない。履歴参照・復元APIと画面は提供せず、保持・復元手順の拡張は案件の要件で判断する。適用済みmigrationと既存データは変更しない。
+
+
+<a id="adr-037"></a>
+## ADR-037: ナビの動作・一括操作の配置・テーマ保持
+
+**状態:** Accepted。ナビ動作は[ADR-039](#adr-039)、編集色と操作配置は[ADR-038](#adr-038)によりSuperseded。ADR-035のナビ動作と画面共通状態を補足する。
+
+**背景:** 左ナビの瞬時の出現・消失では画面とのつながりが分かりにくい。一括操作が一覧の下だけにあると操作を発見しにくい。また、テーマの選択をページごとに失うと利用者の操作を繰り返し要求する。
+
+**決定:** HTML標準dialogのmodal・focus・Escape制御を維持し、Alpine.jsからWeb Animations APIで左ナビのslideを行う。背景は共通CSSでfadeする。開く動作は220ms、閉じる動作は180msとし、prefers-reduced-motionでは動きを省く。閉じる動作中の多重操作を抑止し、閉鎖完了後にfocusを戻す。
+
+検索結果の見出し・登録操作に続けて、選択件数・一括編集／削除・選択方法を一覧の上へ配置する。各行の操作にも編集と削除を置き、削除は確認画面を経由する。新規登録の配色は維持し、編集はBootstrap secondary、削除はdangerの背景と白文字へ統一する。更新の保存・再編集、入力行削除、部品集の編集・削除も同じvariantを使う。
+
+テーマはlocalStorageのspring-application-template.themeへlight／darkとして保存する。配布済みapplication.jsをCSSより先に実行し、保存値を初回描画前にHTMLへ反映する。Alpineの共通状態はその値で初期化し、変更を保存する。storage利用が拒否された場合は起動を止めず、そのページ内の切り替えを提供する。業務データ・認証情報はstorageへ保存しない。
+
+**影響:** メニューの開閉とfocus・連続操作・motion軽減、一括操作の上部配置・選択解除、行削除からの確認、テーマのページ遷移・reload・明示的解除を実browserで確認する。新しいfrontend依存は追加しない。
+
+
+<a id="adr-038"></a>
+## ADR-038: 操作の配色・幅・配置の統一
+
+**状態:** Accepted。ADR-037の編集色と操作配置を更新する。
+
+**背景:** ラベルによるボタン幅の変化と検索・登録の配置の違いは、操作位置を予測しにくくし、誤操作を招く。
+
+**決定:** 編集・更新はBootstrap successの背景と白文字、登録はprimary、削除はdangerを使用する。テキストボタンは共通CSSで通常8rem、長いラベル13rem、表内5remの固定幅とする。全幅のログイン・カード導線とアイコン専用ボタンは用途に応じた幅を維持する。検索条件とデータ操作を見出し・余白で区切り、操作群を右揃えにする。狭い画面では操作群を折り返し、ラベルを省略しない。
+
+**影響:** 一覧・詳細・入力・削除確認と部品集で同じ規則を適用し、配色・幅・位置・狭い画面での操作を実browserで検証する。
+
+
+<a id="adr-039"></a>
+## ADR-039: HTMLの意味に沿った操作と標準サイドメニュー
+
+**状態:** Accepted。ADR-035／037のナビ実装を更新し、ADR-028のHTML部品の選択方針を補足する。
+
+**背景:** 表示上の用途とHTML要素の役割が一致する構成は、実装を読む開発者とキーボード・支援技術を使う利用者が操作を理解しやすい。サイドメニューには導入済みBootstrapの標準部品を使用できる。
+
+**決定:** サイドメニューはasideとnavで構成し、Bootstrap Offcanvasのdata属性で開閉する。BootstrapのJavaScriptを既存WebJarからローカル配信し、背景表示・スクロール抑止・focus移動と閉じ込め・Escape・動作軽減を標準機能へ委ねる。Offcanvasが開いている間のmodalな操作範囲はBootstrapがrole／aria-modalを設定して示す。Alpine.jsによる二重の開閉状態、独自slide・fadeは持たない。JavaScript無効時の代替リンクと未保存入力の移動確認を維持する。
+
+URLへ移動する操作はhrefを持つa、その場の処理はtype=buttonのbutton、入力確定はform内のtype=submitのbuttonを使用する。検索などの通常フォームは既存の送信先を維持し、部品集の入力確認もformの標準検証を通す。内容を区切るsectionには用途を示す見出しを設け、tableの名称はcaptionで表現する。見た目の調整にはBootstrap classを使い、要素の役割を外観の都合で変更しない。
+
+**影響:** 共通ナビ・配布asset・部品集・表の名称・関連ガイドとbrowser testを更新する。画面遷移、GETでの確認とPOSTでの確定、認可・CSRF・transactionの契約は維持する。Bootstrap標準のOffcanvasは表示中にdialogのARIA roleを持つため、modalなメニューとして支援技術へ通知される。
+
+参照: [Bootstrap 5.3 Offcanvas](https://getbootstrap.com/docs/5.3/components/offcanvas/)、[採用versionの実装](https://github.com/twbs/bootstrap/blob/v5.3.8/js/src/offcanvas.js)。
