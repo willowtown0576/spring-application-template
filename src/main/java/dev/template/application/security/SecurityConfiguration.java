@@ -88,11 +88,10 @@ class SecurityConfiguration {
     @Bean
     SecurityFilterChain uiSecurityFilterChain(final HttpSecurity http) throws Exception {
         return http.csrf(csrf -> csrf.spa())
-            .authorizeHttpRequests(
-                requests -> requests.requestMatchers("/", "/components", "/login", "/vendor/**", "/ui/**", "/error")
-                    .permitAll().requestMatchers("/actuator/**").denyAll().anyRequest().authenticated())
+            .authorizeHttpRequests(requests -> requests.requestMatchers("/login", "/vendor/**", "/ui/**", "/error")
+                .permitAll().requestMatchers("/actuator/**").denyAll().anyRequest().authenticated())
             .formLogin(login -> login.loginPage("/login").defaultSuccessUrl("/", true).permitAll())
-            .logout(logout -> logout.logoutSuccessUrl("/"))
+            .logout(logout -> logout.logoutSuccessUrl("/login?logout"))
             .exceptionHandling(exceptions -> exceptions.authenticationEntryPoint((request, response, exception) -> {
                 final String login = request.getContextPath() + "/login";
                 if ("true".equals(request.getHeader("HX-Request"))) {

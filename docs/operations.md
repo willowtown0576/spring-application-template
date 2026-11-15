@@ -29,7 +29,7 @@ timeoutは正のDuration。bootRunだけはconfig/local-env.propertiesから環�
 
 開発用認証は`starter.security.local.enabled=true`の場合だけ有効。bootRunは環境変数`STARTER_SECURITY_LOCAL_ENABLED`が未設定ならtrueを補完する。既存環境変数、次にlocal-env.propertiesの値を優先する。IDEから直接起動する場合は開発用の実行設定で明示的に有効化する。
 
-開発用認証ではSpring Securityのフォーム認証とjteのHTMLフォームを使用する。`/login`へAPP_USER_NAME／APP_USER_PASSWORDを入力するとsessionが確立する。passwordは起動時にBCryptでencodeし、InMemoryUserDetailsManagerへ登録する。設定不足と不正な長さは起動時に拒否する。利用者名のsystem: prefixはシステム主体用に予約する。利用者はfeatureの参照・更新権限を持ち、運用権限はAPP_USER_OPERATIONS_READ=trueの場合だけ付与する。
+開発用認証ではSpring Securityのフォーム認証とjteのHTMLフォームを使用する。`/login`へAPP_USER_NAME／APP_USER_PASSWORDを入力するとsessionが確立し、homeへ進む。home・部品集・業務画面は認証必須とし、logout後はloginへ戻る。passwordは起動時にBCryptでencodeし、InMemoryUserDetailsManagerへ登録する。設定不足と不正な長さは起動時に拒否する。利用者名のsystem: prefixはシステム主体用に予約する。利用者はfeatureの参照・更新権限を持ち、運用権限はAPP_USER_OPERATIONS_READ=trueの場合だけ付与する。
 
 ### 本番の認証を接続する
 
@@ -47,14 +47,14 @@ timeoutは正のDuration。bootRunだけはconfig/local-env.propertiesから環�
 
 外部認証の接続設定やfilter chain内だけのprovider定義は、上記のBean公開を代替しない。OIDCの依存追加だけでは接続は完了しない。SSOや利用者管理DBは案件で実装し、開発用認証を無効にした状態で、認証成功・失敗、開発credentialの拒否、logout、権限不足を確認する。Method SecurityとCSRF保護は採用方式でも維持する。
 
-未認証の保護UIはloginへ誘導し、REST／Actuatorは401を返す。標準ヘッダーのログアウトはsessionを無効化する。
+未認証の保護UIはloginへ誘導し、REST／Actuatorは401を返す。標準ヘッダーのログアウトはsessionを無効化し、/login?logoutへ戻る。
 
 | 対象 | 必要な権限 |
 |---|---|
-| `/`、`/components` | 匿名可 |
+| `/`、`/components` | 認証必須 |
 | `/features`、`/api/**` | 認証必須。各操作の本認可は下記 |
-| FeatureCommands.create | feature:write |
-| FeatureQueries.find | feature:read |
+| FeatureCommands.create／createMany／update／updateMany／delete／deleteMany | feature:write |
+| FeatureQueries.findById／search | feature:read |
 | `/actuator/health` | 匿名可、詳細なし |
 | `/actuator/info`、`/actuator/metrics` | ops:read |
 | 有効化したOpenAPI／Swagger UI | ops:read |
@@ -178,3 +178,5 @@ ActionsはSHA固定、通常contents:read、公開jobのみcontents:write、chec
 - 認証provider、実行環境のsecret、DB権限、backup／restore、監視・deployment。
 
 PostgreSQLのCompose／Catalogは同じ更新PRで揃える。Paketo imageもgroup更新する。資料imageのDebian snapshot日付は手動で検証して更新する。外部環境の接続状態はrepository内の設定だけでは確認できない。
+
+削除履歴はfeature.feature_historyに保持し、applicationによる自動削除や復元は行わない。削除操作は現在値を履歴へ移すため、保管対象・権限・backup・保持期間を案件の運用方針に含める。登録再送台帳の結果IDが削除済みになる場合も、再送で元データを再作成しない。

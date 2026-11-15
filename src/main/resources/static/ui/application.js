@@ -1,10 +1,17 @@
+const themeStorageKey = 'spring-application-template.theme';
+try {
+    if (localStorage.getItem(themeStorageKey) === 'dark') document.documentElement.dataset.bsTheme = 'dark';
+} catch {
+    // Storageを利用できない場合も、初期表示とページ内のテーマ切り替えを提供する。
+}
+
 document.addEventListener('htmx:configRequest', event => {
     const token = document.cookie.split('; ').find(cookie => cookie.startsWith('XSRF-TOKEN='));
     const header = document.querySelector('meta[name="csrf-header"]');
     if (token && header) event.detail.headers[header.content] = decodeURIComponent(token.substring('XSRF-TOKEN='.length));
 });
 document.addEventListener('htmx:beforeSwap', event => {
-    if ([403, 422, 500].includes(event.detail.xhr.status)) {
+    if ([400, 403, 422, 500].includes(event.detail.xhr.status)) {
         event.detail.shouldSwap = true;
         event.detail.isError = false;
         if (event.detail.xhr.status !== 422) {
@@ -25,6 +32,21 @@ for (const eventName of ['htmx:sendError', 'htmx:timeout']) {
     });
 }
 document.addEventListener('alpine:init', () => {
+    Alpine.data('workspaceShell', () => ({
+        dark: document.documentElement.dataset.bsTheme === 'dark',
+        init() {
+            window.addEventListener('pageshow', event => {
+                if (event.persisted) {
+                    try { this.dark = localStorage.getItem(themeStorageKey) === 'dark'; }
+                    catch { /* 戻る操作でもStorageの拒否によって画面を停止しない。 */ }
+                }
+            });
+            this.$watch('dark', value => {
+                try { localStorage.setItem(themeStorageKey, value ? 'dark' : 'light'); }
+                catch { /* Storageが拒否されても現在の表示は切り替える。 */ }
+            });
+        }
+    }));
     Alpine.data('sampleGallery', () => ({
         items: [
             {id: 1, name: '画面レイアウトの確認', status: '未着手'},

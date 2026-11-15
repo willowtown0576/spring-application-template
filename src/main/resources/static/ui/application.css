@@ -1,5 +1,10 @@
 [x-cloak] { display: none !important; }
+.navigation-drawer { --bs-offcanvas-width: 20rem; max-width: calc(100vw - 2rem); }
 .htmx-request { cursor: progress; }
 @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after { transition-duration: 0s !important; animation-duration: 0s !important; }
+    *, *::before, *::after, *::backdrop { transition-duration: 0s !important; animation-duration: 0s !important; }
 }
+
+.btn-action { inline-size: 8rem; flex-shrink: 0; max-inline-size: 100%; }
+.btn-action-wide { inline-size: 13rem; flex-shrink: 0; max-inline-size: 100%; }
+.btn-action-row { inline-size: 5rem; flex-shrink: 0; max-inline-size: 100%; }

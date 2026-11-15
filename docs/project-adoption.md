@@ -82,8 +82,8 @@
 | DB／SQL型 | 新migration、JooqCodegenのschema／package、Repository／DataSourceのgenerated import |
 | 認証・system | LocalAuthenticationConfigurationの権限付与、SystemActorの権限。SystemActorは`List<GrantedAuthority>`で複数featureの権限を保持できる |
 | REST／UI | FeatureController、UiController、jteのDB連携リンク、OpenApiConfigurationのtitle／説明 |
-| 品質設定 | ArchitectureTestのpackage規約、SpotBugs filterのCreateFeatureUseCase例外 |
-| test | FeatureNameTest、CreateFeatureUseCaseTest、DatabaseIntegrationTest、WithTestUser、LocalAuthenticationConfigurationTest、ProjectAuthenticationIntegrationTest、SystemExecutionTest、FeatureUiIntegrationTest、ApiDocumentationTestのsample依存 |
+| 品質設定 | ArchitectureTestのpackage規約、SpotBugs filterのFeature UseCase・cursor codecの依存共有例外 |
+| test | FeatureNameTest、FeatureTest、CreateFeatureUseCaseTest、FeatureOperationsIntegrationTest、DatabaseIntegrationTest、WithTestUser、LocalAuthenticationConfigurationTest、ProjectAuthenticationIntegrationTest、SystemExecutionTest、FeatureUiIntegrationTest、ApiDocumentationTestのsample依存 |
 | DB資料 | .tbls.ymlのname／desc／exclude、DB guide／ER説明 |
 | プロジェクト資料 | README、architecture、developer-guide、operations、図のsample説明とURL |
 
@@ -102,7 +102,7 @@
 - [ ] **F1 変更必須 — 案件の入口を作る。** pages/home/index.jteを案件homeへ置換し、layouts/application.jteのタイトル・ナビ、pages/auth/login.jte、空状態・エラー・ヘルプ文言を合わせる。リンク先は実際に提供するURLと一致させる。
 - [ ] **F2 判断必須 — 公開sampleの扱いを確定する。** `/components`は匿名公開で、メニューを消すだけではアクセスできる。削除または案件向けのURL制限を行い、本番で残すものは公開理由を明確にする。DB sampleの`/features`／`/api/v1/features`も別に判断する。
 - [ ] **F3 判断必須 — 画面規約を定める。** Bootstrap標準class・variantと共通jte部品を使用し、明暗・狭幅・入力エラー・キーボード操作を検証する。
-- [ ] **F4 条件付き — 公開部品集を削除したら付随設定も整理する。** pages/samples/components/、sampleGallery、ナビ、Securityの匿名許可、資料、対応UI testを更新する。
+- [ ] **F4 条件付き — 部品集を削除したら付随設定も整理する。** pages/samples/components/、sampleGallery、ナビ、Securityの保護範囲、資料、対応UI testを更新する。
 - [ ] **F5 判断必須 — 言語・時刻・端末を確定する。** 日本語表示、lang／Locale、DatePicker等の入力形式、業務timezone／通貨、mobileとkeyboard操作を要件に合わせる。内部時刻のUTC／Clockと業務の表示timezoneを区別する。
 - [ ] **F6 変更必須 — 業務REST契約と資料を合わせる。** FeatureControllerのpath／DTO／status、OpenApiConfigurationの共通説明と各APIのmetadata、FeatureApiDocumentationTest等のsample契約testを実仕様へ変更する。RESTを提供しない場合はsampleを撤去し、API資料task／release添付の扱いをADRで決める。
 - [ ] **F7 条件付き — APIの構造を変える場合は周辺も追従する。** 現行は`/api/v1`、WebConfigurationはpath segment 1でmajorを解決する。prefix／major変更時はsecurityMatcher、URL／test、OpenAPI出力先、releaseArtifactsを確認する。API versionとapplication versionは独立して管理する。
@@ -155,7 +155,7 @@ rg -n 'feature|application\.jooq|SystemExecution' src codegen/src config .tbls.y
 ```
 
 - [ ] **J3 — 生成内容を読む。** jOOQの対象schema／package、DB資料のtable／COMMENT／ER、APIのpath／schema／status、Markdown linkを確認する。build成功だけでは内容の妥当性は保証されない。
-- [ ] **J4 — 案件UI／APIを動かす。** bootRunでhome・login／logout・業務操作・未認証・権限不足・validation・明暗・mobileを確認する。削除したsample URLは使えず、残した公開機能だけ匿名で動くことを確認する。
+- [ ] **J4 — 案件UI／APIを動かす。** bootRunでhome・login／logout・業務操作・未認証・権限不足・validation・明暗・mobileを確認する。削除したsample URLは使えず、login・asset・healthの公開と、home・部品集・業務画面の未認証拒否を確認する。
 - [ ] **J5 — testと解析を業務へ移す。** sample専用testの置換後も、commit／rollback、Method Security、system context復元、入力境界、module境界、生成型の参照範囲、配布物へのtest混入禁止を検証できることを確認する。
 - [ ] **J6 — クリーンな案件checkoutでも実行する。** Git管理外の必要設定を手順どおり供給し、CI／別開発環境でbuildできることを確認する。再現に必要なsourceと手順はrepositoryで管理する。
 
@@ -214,3 +214,11 @@ GitHubはtemplateからrepositoryを作成でき、CLIの`gh repo create --templ
 BはGradle標準のtaskとして実装する案であり、方式の選択後に実装する。[Gradle custom tasks](https://docs.gradle.org/current/userguide/implementing_custom_tasks.html)を参照する。
 
 Copierには質問・回答file・project更新の機構がある。更新時の競合処理を含めて採用判断する。[template設定](https://copier.readthedocs.io/en/latest/configuring/)、[project更新](https://copier.readthedocs.io/en/stable/updating/)を参照する。
+
+Feature sampleを転用・削除する際は、検索／一括操作の[ADR-032](decisions.md#adr-032)、status・日時・versionとregistration_request、cursorのHTTP契約、競合確認フォーム、FeatureOperationsIntegrationTestの連動先も確認する。再送記録の保持方針は案件で定める。
+
+API sampleを転用・削除する場合はFeatureOpenApiConfigurationのpath・schema・具体例とFeatureApiDocumentationTestも合わせる。共通の認証・CSRF・ProblemDetailはOpenApiConfigurationが所有する。
+
+削除sampleを転用する場合は、FeatureDeletionTarget、DeleteFeatureParam／DeleteFeaturesParam、削除確認画面、feature.feature_historyの全カラム・COMMENT・保管方針、履歴参照・復元の要否、登録再送台帳との関係を確認する。FeatureDeletionIntegrationTestとFeatureApiDocumentationTestの削除例も契約に合わせる。
+
+ブラウザーの表示設定はapplication.jsのthemeStorageKeyで名前空間を定める。同一originで複数applicationを配布する案件では、テーマの共有方針に合わせてkeyを設定し、遷移・再読込・戻る・Storage拒否を確認する。

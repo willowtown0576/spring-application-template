@@ -49,7 +49,9 @@ unitTestでもcompileに必要なjOOQ型がなければcodegenを実行するた
 | 契約 | 主なtest・確認方法 |
 |---|---|
 | module公開範囲、依存方向 | ArchitectureTest |
-| 名前のUnicode境界・不変条件 | FeatureNameTest、CreateFeatureUseCaseTest |
+| 名前のUnicode境界・不変条件 | FeatureNameTest、FeatureTest、CreateFeatureUseCaseTest |
+| 削除時の全カラム保存・共通日時・実行者、100件境界・拒否・途中障害・DB制約・同時更新、認可とCSRF | FeatureDeletionIntegrationTest |
+| カーソル前後移動・同値順序・literal検索、一括更新の全件拒否・no-op、同時再送・競合・rollback、RESTの行エラー | FeatureOperationsIntegrationTest |
 | Clock、UUID v7 | UuidV7GeneratorTest |
 | 空DB migration、制約、COMMENT、jOOQ | DatabaseIntegrationTest |
 | commit／rollback／read-only | DatabaseIntegrationTest。書き込み後に例外を発生させ、行が残らないことも確認 |
@@ -62,9 +64,9 @@ unitTestでもcompileに必要なjOOQ型がなければcodegenを実行するた
 | 開発用認証無効時の案件storeによるlogin、開発credential拒否、権限不足・logout | ProjectAuthenticationIntegrationTest |
 | HTTP timeout設定、相関ID、非retry | HttpTimeoutConfigurationIntegrationTest、HttpClientLoggingIntegrationTest |
 | payload・例外messageのログ秘匿 | CorrelationFilterTest、HTTP／DB integration tests |
-| 公開home／部品集、通常フォーム・htmx操作、保護UI、DB操作、明暗・mobile | FeatureUiIntegrationTest |
+| ログイン→home／部品集、通常フォーム・htmx操作、保護UI、DB操作・削除確認／取消／競合再確認、メニューのanimation・focus・動作軽減、上部一括操作・行削除、テーマの遷移保持・Storage拒否、mobile | FeatureUiIntegrationTest |
 | OpenAPI生成とops:readによる保護 | ApiDocumentationTest |
-| Feature sampleのOpenAPI契約 | FeatureApiDocumentationTest |
+| Feature sampleのOpenAPI契約・具体例の実API入力・検索前後移動 | FeatureApiDocumentationTest |
 | 増分codegen | 変更なしでjooqCodegenを再実行しUP-TO-DATEを確認 |
 | DB・ER図 | documentation生成後、内容と描画結果を確認 |
 | 配布JAR・OCI | verifyProductionJar、bootBuildImage、案件DB接続での実行 |
@@ -97,3 +99,5 @@ reportとcaptureはGit管理外とする。UI captureはintegrationTestの出力
 共通検査の対象はmodule境界・認可・transaction・配布境界とし、名称・件数・登録内容は各機能の契約testで検証する。Flyway履歴は解決済みmigrationと照合し、Batchの検証はそのtestの実行IDへ絞る。設定を無効にした場合の動作を検証するtestは、その条件をtest自身に指定する。
 
 sampleの名前・入力制約・権限・表示文言はsampleの契約であり、転用・削除時に対応testも更新する。Modulithの依存宣言、Method Security、transaction、DB制約、非推奨API禁止等の品質規約は保持する。案件の設計を変更する場合はADRと検査を整合させる。
+
+UIの意味と操作は実browserで検証する。Offcanvasの開閉・Escape・背景クリック・focus保持と復帰、動作軽減、表の名前、部品集のフォーム検証と通知を含む。画面移動リンクと処理ボタンは、GETによる確認・POSTによる確定の既存testでも確認する。

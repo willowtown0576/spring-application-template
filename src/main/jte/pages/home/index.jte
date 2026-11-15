@@ -3,59 +3,44 @@
 @param UiPage page
 
 @template.layouts.application(page = page, title = "ホーム", content = @`
-    @template.components.page-heading(section = "HOME", title = "今日の業務を、ここから。",
-        description = "必要な情報と操作へ、迷わずアクセスできるワークスペース。")
-    <section class="card border-0 shadow-sm rounded-4 mb-5" aria-label="ワークスペースの案内">
+    @template.components.page-heading(section = "WORKSPACE", title = "今日の業務を、ここから。",
+        description = "利用する機能を選択して、作業を始めましょう。")
+    <section class="card border-0 shadow-sm rounded-4 mb-4" aria-labelledby="workspace-title">
         <div class="card-body p-4 p-lg-5">
-            <div class="row align-items-center g-4">
+            <div class="row g-4 align-items-center">
                 <div class="col-lg-8">
-                    <span class="badge bg-primary-subtle text-primary-emphasis rounded-pill mb-3">WORKSPACE</span>
-                    <h2 class="h3 fw-semibold mb-3">ひとつの場所から、<br>スムーズに仕事を進める。</h2>
-                    <p class="text-body-secondary mb-0">情報を探す、内容を確認する、データを登録する。<br class="d-none d-sm-block">いつもの操作を、一貫した使い心地で。</p>
+                    <span class="badge bg-primary-subtle text-primary-emphasis mb-3">業務を始める</span>
+                    <h2 id="workspace-title" class="h3 fw-semibold mb-3">必要な情報と操作へ、<br class="d-none d-sm-block">迷わずアクセス。</h2>
+                    <p class="text-body-secondary mb-0">データの検索、内容の確認、登録・更新まで。<br class="d-none d-sm-block">一貫した操作で日々の業務を進められます。</p>
                 </div>
                 <div class="col-lg-4">
                     <div class="bg-body-tertiary border rounded-3 p-4">
-                        <p class="small fw-semibold text-body-secondary mb-3">QUICK ACCESS</p>
-                        <p class="fw-semibold mb-2">データの登録・検索</p>
-                        <p class="small text-body-secondary mb-3">必要なデータへ直接アクセス</p>
-                        <a
-                            class="btn btn-primary w-100"
-                            href="${page.contextPath()}/features">データ管理を開く <span
-                            aria-hidden="true">→</span></a>
+                        <p class="small fw-semibold text-body-secondary mb-2">QUICK ACCESS</p>
+                        <p class="fw-semibold mb-3">データ管理</p>
+                        <a id="welcome-features" class="btn btn-primary w-100" href="${page.contextPath()}/features">検索・一覧を開く <span aria-hidden="true">→</span></a>
                     </div>
                 </div>
             </div>
         </div>
     </section>
-    <div class="d-flex align-items-center justify-content-between mb-3">
-        <h2 class="h5 fw-semibold mb-0">ワークスペースを使う</h2>
-        <span class="small text-body-secondary">機能を選択</span>
-    </div>
     <div class="row g-4">
         <div class="col-md-6">
             <section class="card border-0 shadow-sm rounded-4 h-100">
                 <div class="card-body p-4 d-flex flex-column align-items-start">
-                    <span class="badge bg-primary-subtle text-primary-emphasis mb-4">画面・操作</span>
-                    <h3 class="h5 fw-semibold mb-2">画面コンポーネント集</h3>
-                    <p class="text-body-secondary mb-4">検索一覧から詳細、入力フォームまで。共通の操作と画面部品を確認できます。</p>
-                    <a
-                        id="welcome-gallery"
-                        class="btn btn-outline-primary mt-auto" x-bind:class="{'text-white': dark}"
-                        href="${page.contextPath()}/components">部品集を開く <span
-                        aria-hidden="true">→</span></a>
+                    <span class="badge bg-success-subtle text-success-emphasis mb-3">DATA MANAGEMENT</span>
+                    <h2 class="h5 fw-semibold mb-2">データの登録・更新</h2>
+                    <p class="text-body-secondary mb-4">新しいデータを登録し、一覧から選択した内容を編集します。複数行の入力・更新にも対応しています。</p>
+                    <a class="btn btn-outline-primary mt-auto w-100" x-bind:class="{'text-white': dark}" href="${page.contextPath()}/features/new">新しいデータを登録 <span aria-hidden="true">→</span></a>
                 </div>
             </section>
         </div>
         <div class="col-md-6">
             <section class="card border-0 shadow-sm rounded-4 h-100">
                 <div class="card-body p-4 d-flex flex-column align-items-start">
-                    <span class="badge bg-secondary-subtle text-secondary-emphasis mb-4">データ・管理</span>
-                    <h3 class="h5 fw-semibold mb-2">データ管理</h3>
-                    <p class="text-body-secondary mb-4">名前を登録し、IDで内容を検索。保存されたデータを確認できます。</p>
-                    <a
-                        class="btn btn-outline-secondary mt-auto" x-bind:class="{'text-white': dark}"
-                        href="${page.contextPath()}/features">データ管理を開く <span
-                        aria-hidden="true">→</span></a>
+                    <span class="badge bg-secondary-subtle text-secondary-emphasis mb-3">COMPONENT LIBRARY</span>
+                    <h2 class="h5 fw-semibold mb-2">画面コンポーネント集</h2>
+                    <p class="text-body-secondary mb-4">一覧・詳細・入力フォームの共通部品と操作を確認できます。ここでの編集はブラウザー内だけに反映されます。</p>
+                    <a id="welcome-gallery" class="btn btn-outline-secondary mt-auto w-100" x-bind:class="{'text-white': dark}" href="${page.contextPath()}/components">部品集を開く <span aria-hidden="true">→</span></a>
                 </div>
             </section>
         </div>

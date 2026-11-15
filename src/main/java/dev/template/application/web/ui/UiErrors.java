@@ -8,13 +8,16 @@ import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.ui.Model;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.server.ResponseStatusException;
 
 /** HTML操作の拒否と技術障害を、内部情報を含まない通知へ変換する。 */
 @Order(Ordered.HIGHEST_PRECEDENCE)
-@ControllerAdvice(assignableTypes = UiController.class)
+@ControllerAdvice(assignableTypes = {UiController.class, FeatureUiController.class, FeatureDeletionUiController.class})
 class UiErrors {
     /** 秘匿済みの診断情報の出力先。 */
     private static final Logger LOG = LoggerFactory.getLogger(UiErrors.class);
@@ -28,6 +31,19 @@ class UiErrors {
     @ResponseStatus(HttpStatus.FORBIDDEN)
     String denied(final Model model) {
         model.addAttribute("message", "操作する権限がありません。");
+        return "components/error-message";
+    }
+
+    /**
+     * 不正なURLやフォームを安全な通知へ変換する。
+     * @param model 表示情報
+     * @return 通知template
+     */
+    @ExceptionHandler({IllegalArgumentException.class, ResponseStatusException.class,
+        MethodArgumentTypeMismatchException.class, MissingServletRequestParameterException.class})
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    String invalid(final Model model) {
+        model.addAttribute("message", "検索条件または入力形式を確認してください。");
         return "components/error-message";
     }
 

@@ -3,10 +3,13 @@ package dev.template.application.web.rest;
 import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
+import com.microsoft.playwright.options.AriaRole;
 import com.microsoft.playwright.options.RequestOptions;
 import dev.template.application.Application;
 import java.net.URI;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -66,19 +69,24 @@ class SwaggerUiIntegrationTest {
 
             // HTML画面と部分更新のURLもcontext pathを保持する。
             page.navigate(base + "/features");
-            page.locator("#feature-name").fill("context path UI");
-            page.locator("#feature-create").click();
-            assertThat(page.locator("#feature-result")).hasText("作成しました。");
+            page.locator("#feature-new").click();
+            assertThat(page).hasURL(Pattern.compile(base + "/features/new.*"));
+            page.locator("[name=rowName]").fill("context path UI");
+            page.locator("#feature-save").click();
+            page.locator("#search-name").fill("context path UI");
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("検索").setExact(true)).click();
+            assertThat(page.locator("tbody")).containsText("context path UI");
             page.navigate(base + "/swagger-ui/index.html");
 
             // Swaggerの標準操作で作成し、context path付きLocationから取得する。
-            page.locator(".opblock-post .opblock-summary").click();
-            page.locator(".opblock-post .try-out__btn").click();
-            page.locator(".opblock-post textarea").fill("{\"name\":\"Swagger sample\"}");
+            page.locator(".opblock-post:has([data-path='/api/v1/features']) .opblock-summary").click();
+            page.locator(".opblock-post:has([data-path='/api/v1/features']) .try-out__btn").click();
+            page.locator(".opblock-post:has([data-path='/api/v1/features']) textarea")
+                .fill("{\"name\":\"Swagger sample\"}");
             final var response = page.waitForResponse(
                 candidate -> candidate.url().endsWith("/api/v1/features")
                     && candidate.request().method().equals("POST"),
-                () -> page.locator(".opblock-post button.execute").click());
+                () -> page.locator(".opblock-post:has([data-path='/api/v1/features']) button.execute").click());
             assertThat(response.status()).isEqualTo(201);
             assertThat(response.url()).isEqualTo(base + "/api/v1/features");
             final String location = response.headerValue("Location");

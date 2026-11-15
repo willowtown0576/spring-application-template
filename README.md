@@ -17,10 +17,11 @@ Java 25／Spring Boot／jte／htmx／Bootstrap／PostgreSQLで、小規模〜中
 
 Windowsでは `gradlew.bat` を使う。bootRunは開発用認証を既定で有効にし、開発PostgreSQLの起動、Flyway migration、application起動まで実行する。配布JAR／OCIでは開発用認証は既定で無効となり、案件の認証実装・設定が必要。認証未設定なら起動を失敗させる。
 
-**[http://localhost:8080/](http://localhost:8080/)** にwelcome、**[/components](http://localhost:8080/components)** に画面部品集を表示する。匿名で一覧・詳細・入力・削除確認・明暗表示などを試せる。部品集の編集はブラウザー内のsample dataだけに反映する。
+**[http://localhost:8080/login](http://localhost:8080/login)** で設定した利用者としてログインする。認証後は **[ホーム](http://localhost:8080/)** から各機能へ進む。ログイン画面は入力に専念する専用layoutとし、業務画面の左ナビは「メニュー」ボタンで開閉する。
 
+**[/components](http://localhost:8080/components)** は認証後の部品集。検索一覧・詳細・入力・削除確認・明暗表示などを試せる。編集はブラウザー内のsample dataだけに反映する。
 
-DB連携例 `/features` とREST `/api/v1/features` は認証必須。`/login` で設定した利用者としてログインできる。未認証のUIはloginへ誘導し、RESTは401を返す。作成は `feature:write`、参照は `feature:read` が必要。Batch／Schedulerは明示的なシステム主体で同じAPIを呼ぶ。詳細は[認証とシステム実行](docs/operations.md#authentication)を参照する。
+条件検索・詳細・単件／複数登録・一括更新・削除のサンプル `/features` とREST `/api/v1/features` は認証必須。登録・更新・削除は `feature:write`、参照は `feature:read` が必要。未認証のUIはloginへ誘導し、RESTは401を返す。削除は確認後に履歴へ保存し、通常の一覧から取り除く。logout後はloginへ戻る。Batch／Schedulerは明示的なシステム主体で同じAPIを呼ぶ。詳細は[認証とシステム実行](docs/operations.md#authentication)を参照する。
 
 設定形式、DBの保持、案件名の変更、起動時の問題は[初期セットアップ](docs/getting-started.md)を参照する。
 
@@ -93,7 +94,7 @@ flowchart LR
 | `src/main/java/dev/template/application/web/`                                       | RESTとMVC画面                                       |
 | `src/main/java/dev/template/application/{common,security,logging,http,scheduling}/` | 共通技術基盤                                       |
 | `src/main/jte/layouts/`・`components/` | 共通レイアウト・画面部品 |
-| `src/main/jte/pages/` | 機能別画面と画面固有の断片。公開部品集はsamples配下 |
+| `src/main/jte/pages/` | 機能別画面と画面固有の断片。部品集はsamples配下 |
 | `src/main/resources/static/ui/` | 共通のブラウザー動作と補助style |
 | `src/main/resources/db/migration/`                                                  | Flyway schema変更履歴                              |
 | `src/test/java/`                                                                    | 全テスト。JUnit Tagでtaskを分離                    |
